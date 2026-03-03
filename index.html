@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI 長照翻譯助手 (Gemini 2.5 版)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Be+Vietnam+Pro:wght@400;600&display=swap');
+
+        body {
+            font-family: 'Noto Sans TC', 'Be Vietnam Pro', sans-serif;
+            background-color: #f3f4f6;
+            height: 100dvh; 
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+
+        /* Animation */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(0.8); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+        .recording-pulse { animation: pulse-ring 2s infinite; }
+
+        .typing-indicator span {
+            display: inline-block; width: 5px; height: 5px; background-color: #3b82f6; border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out both; margin: 0 2px;
+        }
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes typing { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+        .message-enter { animation: slideIn 0.3s ease-out forwards; opacity: 0; transform: translateY(10px); }
+        @keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
+
+        /* Knowledge Card Style */
+        .knowledge-card {
+            background: linear-gradient(to right, #fff7ed, #ffedd5);
+            border-left: 4px solid #f97316;
+        }
+    </style>
+</head>
+<body class="flex flex-col text-slate-800 bg-gray-100 overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 px-3 py-2 shadow-sm z-20 shrink-0">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row gap-2 items-center justify-between">
+            <div class="flex items-center gap-2 w-full md:w-auto justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center text-white shrink-0">
+                        <i class="fa-solid fa-user-nurse"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-bold text-lg tracking-tight whitespace-nowrap leading-none">AI 長照翻譯</h1>
+                        <span class="text-[10px] text-gray-500 font-medium block">Trợ lý Chăm sóc Dài hạn</span>
+                    </div>
+                </div>
+                
+                <!-- Settings Button (Mobile) -->
+                <button onclick="toggleSettingsModal()" class="md:hidden w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition relative">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span id="resourceIndicatorMobile" class="absolute top-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white rounded-full hidden"></span>
+                </button>
+            </div>
+
+            <!-- Settings Group -->
+            <div class="flex flex-col md:flex-row gap-2 w-full md:w-auto items-center">
+                
+                <!-- Language Pair -->
+                <select id="langPairSelect" onchange="handleLangPairChange()" class="w-full md:w-auto bg-blue-50 font-bold text-blue-700 border border-blue-200 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2">
+                    <option value="cn-vn" selected>🇹🇼 中文 ⇄ 🇻🇳 越南文</option>
+                    <option value="cn-en">🇹🇼 中文 ⇄ 🇺🇸 英文</option>
+                </select>
+
+                <!-- Model (Only Gemini 2.5 Flash) -->
+                <select id="modelSelect" disabled class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2 w-full md:w-40 truncate cursor-not-allowed">
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                </select>
+
+                <!-- Desktop Settings Button -->
+                <button onclick="toggleSettingsModal()" class="hidden md:flex bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-lg text-sm transition whitespace-nowrap shrink-0 gap-1 items-center relative">
+                    <i class="fa-solid fa-sliders"></i> 設定
+                    <span id="resourceIndicatorDesktop" class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full hidden"></span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Settings / Resource Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden transform transition-all scale-100 max-h-[90vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="bg-slate-50 p-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+                <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-blue-600"></i> AI 資源管理
+                </h3>
+                <button onclick="toggleSettingsModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 transition">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- Modal Content (Scrollable) -->
+            <div class="p-6 overflow-y-auto space-y-6">
+                
+                <!-- Section 1: Custom Prompt -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-gray-700 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-robot text-purple-500"></i> 1. 自定義 Prompt (角色設定)
+                        </h4>
+                        <span class="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">影響翻譯語氣</span>
+                    </div>
+                    <p class="text-xs text-gray-500">上傳 .txt 檔設定 AI 的角色。例如：「你是一位溫柔的長照護理師，翻譯時請使用禮貌用語...」。</p>
+
+                    <!-- Prompt File UI -->
+                    <div id="promptStatusArea" class="hidden p-3 bg-purple-50 rounded-lg border border-purple-100">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-file-code text-purple-400"></i>
+                            <span id="promptFileName" class="text-sm font-medium truncate flex-1 text-purple-900">prompt.txt</span>
+                            <button onclick="clearResource('prompt')" class="text-red-400 hover:text-red-600 px-2">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                        <div class="text-[10px] text-purple-400 truncate" id="promptPreview">...</div>
+                    </div>
+                    <div id="promptUploadArea">
+                        <label class="block w-full cursor-pointer hover:opacity-80 transition">
+                            <input type="file" id="promptFileInput" accept=".txt" class="hidden" onchange="handleFileUpload(this, 'prompt')">
+                            <div class="border border-dashed border-gray-300 rounded-lg p-3 text-center bg-gray-50">
+                                <span class="text-xs text-gray-500"><i class="fa-solid fa-upload mr-1"></i> 上傳 Prompt 文字檔</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="border-gray-100">
+
+                <!-- Section 2: Knowledge Base -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-gray-700 text-sm flex items-center gap-2">
+                            <i class="fa-solid fa-book-medical text-orange-500"></i> 2. 長照知識庫 (Knowledge Base)
+                        </h4>
+                        <span class="text-[10px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">用於內容檢索</span>
+                    </div>
+                    <p class="text-xs text-gray-500">上傳照護手冊(.txt)。當對話涉及相關內容時，系統會顯示越南文的照護提示。</p>
+
+                    <!-- KB File UI -->
+                    <div id="kbStatusArea" class="hidden p-3 bg-orange-50 rounded-lg border border-orange-100">
+                         <div class="flex items-center gap-2 mb-2">
+                            <i class="fa-solid fa-file-lines text-orange-400"></i>
+                            <span id="kbFileName" class="text-sm font-medium truncate flex-1 text-orange-900">knowledge.txt</span>
+                            <span id="kbSize" class="text-xs text-orange-400">0 KB</span>
+                            <button onclick="clearResource('kb')" class="text-red-400 hover:text-red-600 px-2">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="kbUploadArea">
+                        <label class="block w-full cursor-pointer hover:opacity-80 transition">
+                            <input type="file" id="kbFileInput" accept=".txt" class="hidden" onchange="handleFileUpload(this, 'kb')">
+                            <div class="border border-dashed border-gray-300 rounded-lg p-3 text-center bg-gray-50">
+                                <span class="text-xs text-gray-500"><i class="fa-solid fa-upload mr-1"></i> 上傳知識庫文字檔</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+            <div class="bg-gray-50 p-3 border-t border-gray-200 text-center">
+                <button onclick="toggleSettingsModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition w-full md:w-auto">
+                    完成設定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-hidden relative w-full max-w-3xl mx-auto flex flex-col">
+        
+        <div id="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth pb-24">
+            <!-- Intro Message -->
+            <div class="text-center text-gray-400 text-sm mt-8 mb-10">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl text-gray-400">
+                    <i class="fa-solid fa-comments"></i>
+                </div>
+                <p>開始說話或輸入文字...</p>
+                <p class="text-xs mt-1 text-gray-400">Bắt đầu nói hoặc nhập văn bản...</p>
+            </div>
+            <!-- Chats go here -->
+        </div>
+
+        <!-- Sticky Bottom Input -->
+        <div class="bg-white border-t border-gray-200 p-3 pb-safe z-10 shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] w-full">
+            <div class="max-w-3xl mx-auto relative flex gap-2 items-end">
+                <div id="statusMsg" class="absolute -top-10 left-0 right-0 mx-auto w-fit text-xs font-medium text-blue-600 opacity-0 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 shadow-sm text-center z-20 pointer-events-none transition-opacity">
+                    準備就緒
+                </div>
+
+                <div class="relative flex-1 bg-gray-50 rounded-2xl border border-gray-300 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 transition-all overflow-hidden min-h-[48px]">
+                     <textarea id="sourceText" rows="1" placeholder="輸入文字 / Nhập văn bản..." 
+                        class="w-full p-3 pr-2 resize-none outline-none text-base bg-transparent max-h-32 overflow-y-auto"
+                        style="min-height: 48px;"></textarea>
+                     <div id="voiceListeningOverlay" class="absolute bottom-0 left-0 w-full h-1 bg-gray-200 hidden">
+                        <div class="h-full bg-blue-500 animate-pulse w-full"></div>
+                    </div>
+                </div>
+
+                <button id="speechLangBtn" onclick="toggleSpeechLang()" class="shrink-0 h-12 w-14 rounded-xl bg-gray-100 border border-gray-300 text-gray-700 hover:bg-gray-200 active:scale-95 transition-all text-sm font-medium flex flex-col items-center justify-center gap-0 leading-tight select-none">
+                    <span class="text-[10px] text-gray-500 uppercase">聽取</span>
+                    <span id="speechLangText" class="text-xs font-bold truncate w-full text-center px-1">中文</span>
+                </button>
+
+                <button id="micBtn" onclick="toggleRecording()" 
+                    class="shrink-0 w-12 h-12 rounded-full bg-white border border-gray-300 shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 hover:text-blue-600 active:scale-95 transition-all text-xl select-none">
+                    <i class="fa-solid fa-microphone"></i>
+                </button>
+            </div>
+            <div class="h-[env(safe-area-inset-bottom)] bg-white w-full"></div>
+        </div>
+    </main>
+
+    <script>
+        // --- Configuration & State ---
+        const LANG_PAIRS = {
+            'cn-vn': { label1: '中文', code1: 'zh-TW', label2: '越南文', code2: 'vi-VN', hint1: '中文' },
+            'cn-en': { label1: '中文', code1: 'zh-TW', label2: '英文', code2: 'en-US', hint1: '中文' }
+        };
+
+        const API_URL = "/api/chat"; // 指向 Vercel Serverless Function 端點
+
+        let currentLangPair = 'cn-vn';
+        let currentSpeechLangCode = 'zh-TW';
+        
+        let recognition = null;
+        let isRecording = false;
+        let isTranslating = false;
+        let silenceTimer = null;
+        let finalTranscript = '';
+        
+        // Resources State (KB + Custom Prompt)
+        let kbContent = localStorage.getItem('care_kb_content') || null;
+        let kbFileName = localStorage.getItem('care_kb_filename') || null;
+        
+        let promptContent = localStorage.getItem('care_prompt_content') || null;
+        let promptFileName = localStorage.getItem('care_prompt_filename') || null;
+
+        // --- DOM Elements ---
+        const els = {
+            langPair: document.getElementById('langPairSelect'),
+            source: document.getElementById('sourceText'),
+            mic: document.getElementById('micBtn'),
+            speechBtn: document.getElementById('speechLangBtn'),
+            speechText: document.getElementById('speechLangText'),
+            status: document.getElementById('statusMsg'),
+            voiceOverlay: document.getElementById('voiceListeningOverlay'),
+            chat: document.getElementById('chatContainer'),
+            
+            // Modal Elements
+            settingsModal: document.getElementById('settingsModal'),
+            
+            // KB Elements
+            kbStatus: document.getElementById('kbStatusArea'),
+            kbUpload: document.getElementById('kbUploadArea'),
+            kbName: document.getElementById('kbFileName'),
+            kbSize: document.getElementById('kbSize'),
+            
+            // Prompt Elements
+            promptStatus: document.getElementById('promptStatusArea'),
+            promptUpload: document.getElementById('promptUploadArea'),
+            promptName: document.getElementById('promptFileName'),
+            promptPreview: document.getElementById('promptPreview'),
+
+            // Indicators
+            resIndM: document.getElementById('resourceIndicatorMobile'),
+            resIndD: document.getElementById('resourceIndicatorDesktop')
+        };
+
+        // --- Initialization ---
+        function init() {
+            handleLangPairChange();
+            updateResourceUI();
+        }
+
+        // --- Settings / Resources Logic ---
+        function toggleSettingsModal() {
+            els.settingsModal.classList.toggle('hidden');
+        }
+
+        function updateResourceUI() {
+            // Update KB UI
+            if (kbContent) {
+                els.kbStatus.classList.remove('hidden');
+                els.kbUpload.classList.add('hidden');
+                els.kbName.textContent = kbFileName || 'knowledge.txt';
+                els.kbSize.textContent = (kbContent.length / 1024).toFixed(1) + ' KB';
+            } else {
+                els.kbStatus.classList.add('hidden');
+                els.kbUpload.classList.remove('hidden');
+            }
+
+            // Update Prompt UI
+            if (promptContent) {
+                els.promptStatus.classList.remove('hidden');
+                els.promptUpload.classList.add('hidden');
+                els.promptName.textContent = promptFileName || 'prompt.txt';
+                els.promptPreview.textContent = promptContent.substring(0, 50) + '...';
+            } else {
+                els.promptStatus.classList.add('hidden');
+                els.promptUpload.classList.remove('hidden');
+            }
+
+            // Update Indicators (Dot on settings icon)
+            const hasResource = !!kbContent || !!promptContent;
+            if (hasResource) {
+                els.resIndM.classList.remove('hidden');
+                els.resIndD.classList.remove('hidden');
+            } else {
+                els.resIndM.classList.add('hidden');
+                els.resIndD.classList.add('hidden');
+            }
+        }
+
+        function handleFileUpload(input, type) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            if (file.size > 1024 * 1024 * 2) { // 2MB limit
+                alert("檔案過大，請使用小於 2MB 的文字檔");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                if(text.length > 500000) { 
+                    alert("文字內容過長，將截取前 500,000 字元");
+                }
+                const cleanText = text.substring(0, 500000);
+                
+                if (type === 'kb') {
+                    kbContent = cleanText;
+                    kbFileName = file.name;
+                    localStorage.setItem('care_kb_content', kbContent);
+                    localStorage.setItem('care_kb_filename', kbFileName);
+                } else if (type === 'prompt') {
+                    promptContent = cleanText;
+                    promptFileName = file.name;
+                    localStorage.setItem('care_prompt_content', promptContent);
+                    localStorage.setItem('care_prompt_filename', promptFileName);
+                }
+                
+                updateResourceUI();
+                showStatus(type === 'kb' ? '知識庫已更新' : 'Prompt已更新', 'text-green-600');
+                
+                // Clear input so same file can be selected again
+                input.value = '';
+            };
+            reader.readAsText(file);
+        }
+
+        function clearResource(type) {
+            if (!confirm('確定要移除此檔案嗎？')) return;
+            
+            if (type === 'kb') {
+                kbContent = null; kbFileName = null;
+                localStorage.removeItem('care_kb_content');
+                localStorage.removeItem('care_kb_filename');
+            } else if (type === 'prompt') {
+                promptContent = null; promptFileName = null;
+                localStorage.removeItem('care_prompt_content');
+                localStorage.removeItem('care_prompt_filename');
+            }
+            updateResourceUI();
+        }
+
+        // --- Core Translation Logic ---
+        async function handleInputSubmit() {
+            const textToTranslate = els.source.value.trim();
+            if (!textToTranslate) return; 
+
+            if (isRecording) recognition.stop();
+            isTranslating = true; 
+            clearTimeout(silenceTimer);
+            
+            els.source.value = '';
+            els.source.style.height = '48px';
+            finalTranscript = '';
+
+            const resultId = 'msg-' + Date.now();
+            const userTextId = 'user-' + resultId;
+            const knowledgeId = 'kb-' + resultId;
+
+            appendChatGroup(textToTranslate, resultId, userTextId, knowledgeId);
+
+            // Parallel Execution
+            const translationPromise = fetchTranslation(textToTranslate);
+            
+            let knowledgePromise = null;
+            if (kbContent) {
+                knowledgePromise = fetchKnowledgeTip(textToTranslate);
+            }
+
+            // Handle Translation
+            try {
+                const transResult = await translationPromise;
+                updateChatResult(resultId, transResult.translation);
+                updateUserText(userTextId, transResult.corrected);
+            } catch (e) {
+                updateChatResult(resultId, "Error: 連線失敗或伺服器錯誤");
+                console.error(e);
+            }
+
+            // Handle Knowledge
+            if (knowledgePromise) {
+                try {
+                    const tipText = await knowledgePromise;
+                    if (tipText && tipText !== 'NULL' && tipText.length > 5 && !tipText.includes("NULL")) {
+                        showKnowledgeCard(knowledgeId, tipText);
+                    } else {
+                        removeKnowledgeContainer(knowledgeId);
+                    }
+                } catch (e) {
+                    console.error("KB Error", e);
+                    removeKnowledgeContainer(knowledgeId);
+                }
+            } else {
+                removeKnowledgeContainer(knowledgeId);
+            }
+
+            isTranslating = false;
+            if (isRecording) {
+                showStatus('聆聽中...', 'text-blue-600');
+                setTimeout(() => { if (isRecording) safeStartRecognition(); }, 300);
+            } else {
+                showStatus('完成', 'text-green-600');
+            }
+        }
+
+        // --- UI Rendering ---
+        function appendChatGroup(userText, resultId, userTextId, knowledgeId) {
+            const div = document.createElement('div');
+            div.className = 'message-enter bg-white p-4 rounded-2xl shadow-sm border border-gray-100';
+            div.innerHTML = `
+                <div class="mb-2 group relative">
+                    <p id="${userTextId}" class="text-base md:text-lg text-gray-800 font-medium leading-relaxed break-words">${escapeHtml(userText)}</p>
+                </div>
+                
+                <!-- Knowledge Tip Container -->
+                <div id="${knowledgeId}" class="hidden mb-3 rounded-lg p-3 knowledge-card text-sm">
+                    <div class="flex items-center gap-2 mb-1 text-orange-700 font-bold uppercase text-xs">
+                        <i class="fa-solid fa-lightbulb"></i> 照護小幫手 (Kiến thức chăm sóc)
+                    </div>
+                    <p class="kb-content text-gray-800 leading-relaxed font-sans"></p>
+                </div>
+
+                <div class="flex items-start gap-2 pt-2 border-t border-gray-50">
+                    <div class="mt-1 w-5 h-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-xs">
+                        <i class="fa-solid fa-language"></i>
+                    </div>
+                    <div id="${resultId}" class="text-base md:text-lg text-blue-600 leading-relaxed break-words flex-1 font-[Be Vietnam Pro]">
+                        <div class="typing-indicator mt-2"><span></span><span></span><span></span></div>
+                    </div>
+                    <button onclick="copyText('${resultId}')" class="text-gray-300 hover:text-blue-500 transition px-2">
+                        <i class="fa-regular fa-copy"></i>
+                    </button>
+                </div>
+            `;
+            els.chat.appendChild(div);
+            scrollToBottom();
+        }
+
+        function showKnowledgeCard(elementId, text) {
+            const el = document.getElementById(elementId);
+            if (el) {
+                el.classList.remove('hidden');
+                el.querySelector('.kb-content').innerText = text;
+                scrollToBottom();
+            }
+        }
+
+        function removeKnowledgeContainer(elementId) {
+            const el = document.getElementById(elementId);
+            if(el) el.remove();
+        }
+
+        function updateChatResult(elementId, text) {
+            const el = document.getElementById(elementId);
+            if (el) el.innerText = text;
+        }
+
+        function updateUserText(elementId, text) {
+            const el = document.getElementById(elementId);
+            if (el) el.innerText = text;
+        }
+
+        // --- AI API Functions ---
+        
+        // 1. Translation Prompt
+        function getTransSystemPrompt() {
+            const pair = els.langPair.value;
+            let target = pair === 'cn-vn' ? "Vietnamese" : "English";
+            let instructions = pair === 'cn-vn' 
+                ? "If input is Chinese, translate to Vietnamese. If input is Vietnamese, translate to Traditional Chinese."
+                : "If input is Chinese, translate to English. If input is English, translate to Traditional Chinese.";
+
+            // Base Role
+            let baseRole = "You are a professional translator & editor.";
+            
+            // If user has custom prompt, Prepend it to override/enhance persona
+            if (promptContent) {
+                 baseRole = `[User Custom Instructions Starts]\n${promptContent}\n[User Custom Instructions Ends]\n\n`;
+            }
+
+            return `${baseRole}
+Task 1: Punctuate the user input naturally (add periods, commas).
+Task 2: Translate based on these rules: ${instructions}
+
+Output format exactly:
+Corrected: <Punctuated_Text>
+Translation: <Translated_Text>`;
+        }
+
+        // 2. Knowledge Prompt (RAG)
+        function getKbSystemPrompt(userInput) {
+            return `Role: Senior Care Assistant.
+Context: You have access to a knowledge base text provided by the user (attached below).
+Task: Check if the User Input: "${userInput}" relates to any specific instruction in the Knowledge Base.
+Rules:
+1. If relevant, summarize the specific instruction/advice in **Vietnamese**.
+2. Keep it short (under 3 sentences) and practical.
+3. If NOT relevant, return exactly "NULL".
+4. Output MUST be in Vietnamese.`;
+        }
+
+        async function fetchTranslation(text) {
+            const sysPrompt = getTransSystemPrompt();
+            return callGemini(text, sysPrompt, false);
+        }
+
+        async function fetchKnowledgeTip(userInput) {
+            const kbContext = kbContent.substring(0, 30000); 
+            const sysPrompt = getKbSystemPrompt(userInput);
+            const combinedInput = `Knowledge Base:\n${kbContext}\n\nUser Input Check: ${userInput}`;
+            
+            const res = await callGemini(combinedInput, sysPrompt, true);
+            return res.rawText;
+        }
+
+        // 修改為呼叫 Vercel 的 Backend API
+        async function callGemini(text, systemPrompt, isRaw) {
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        // 使用 systemInstruction 來對應 chat.js 內的處理邏輯
+                        systemInstruction: { parts: [{ text: systemPrompt }] },
+                        contents: [{ role: "user", parts: [{ text: text }] }]
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.candidates) {
+                    const raw = data.candidates[0].content.parts[0].text.trim();
+                    return isRaw ? { rawText: raw } : parseAIResponse(raw, text);
+                }
+                throw new Error(data.error?.message || data.error || 'Server Error');
+            } catch (error) {
+                return isRaw ? { rawText: "NULL" } : { corrected: text, translation: `Error: ${error.message || 'API 請求失敗'}` };
+            }
+        }
+
+        // --- Helpers ---
+        function parseAIResponse(responseText, originalInput) {
+            let corrected = originalInput, translation = responseText;
+            const lines = responseText.split('\n');
+            let fC = false, fT = false;
+            lines.forEach(line => {
+                if (line.startsWith('Corrected:')) { corrected = line.replace('Corrected:', '').trim(); fC = true; }
+                else if (line.startsWith('Translation:')) { translation = line.replace('Translation:', '').trim(); fT = true; }
+            });
+            if (!fT && !fC) translation = responseText;
+            else if (fC && !fT) translation = "(翻譯失敗)";
+            return { corrected, translation };
+        }
+        
+        function handleLangPairChange() {
+            currentLangPair = els.langPair.value;
+            const cfg = LANG_PAIRS[currentLangPair];
+            setSpeechLang(cfg.code1, cfg.label1);
+        }
+
+        function showStatus(msg, cls) {
+            els.status.textContent = msg;
+            els.status.className = `absolute -top-10 left-0 right-0 mx-auto w-fit text-xs font-medium transition-opacity opacity-100 bg-white border shadow-sm px-3 py-1.5 rounded-full z-20 ${cls}`;
+            setTimeout(() => { els.status.classList.remove('opacity-100'); els.status.classList.add('opacity-0'); }, 3000);
+        }
+
+        function setSpeechLang(code, label) {
+            currentSpeechLangCode = code;
+            const isForeign = (code !== 'zh-TW');
+            els.speechBtn.className = isForeign ? "shrink-0 h-12 w-14 rounded-xl bg-purple-100 border border-purple-300 text-purple-700 text-sm font-medium flex flex-col items-center justify-center gap-0" : "shrink-0 h-12 w-14 rounded-xl bg-gray-100 border border-gray-300 text-gray-700 text-sm font-medium flex flex-col items-center justify-center gap-0";
+            els.speechText.textContent = label;
+            if (recognition) recognition.lang = code;
+        }
+
+        function toggleSpeechLang() {
+            const pair = LANG_PAIRS[currentLangPair];
+            setSpeechLang(currentSpeechLangCode === pair.code1 ? pair.code2 : pair.code1, currentSpeechLangCode === pair.code1 ? pair.label2 : pair.label1);
+            if (isRecording) recognition.stop();
+        }
+
+        function scrollToBottom() { els.chat.scrollTop = els.chat.scrollHeight; }
+        function escapeHtml(text) { return text.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]); }
+        
+        window.copyText = function(id) {
+            const t = document.getElementById(id)?.innerText;
+            if(t) navigator.clipboard.writeText(t).then(()=>showStatus('已複製', 'text-green-600'));
+        };
+        
+        // --- Input Events ---
+        els.source.addEventListener('input', function() {
+            this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px';
+            if(this.value === '') this.style.height = '48px';
+        });
+        
+        els.source.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleInputSubmit(); }
+        });
+
+        // --- Speech ---
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SR();
+            recognition.continuous = true; recognition.interimResults = true; recognition.lang = currentSpeechLangCode;
+            recognition.onstart = () => { isRecording = true; updateMicUI(true); showStatus('聆聽中...', 'text-blue-600'); };
+            recognition.onend = () => { 
+                if(!isTranslating && isRecording) safeStartRecognition(); 
+                else if(!isTranslating) updateMicUI(false); 
+            };
+            recognition.onerror = () => { recognition.stop(); isRecording = false; updateMicUI(false); };
+            recognition.onresult = (e) => {
+                if(isTranslating) return;
+                let interim = '';
+                for (let i = e.resultIndex; i < e.results.length; ++i) {
+                    if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript;
+                    else interim += e.results[i][0].transcript;
+                }
+                els.source.value = finalTranscript + interim;
+                clearTimeout(silenceTimer);
+                if((finalTranscript || interim) && !isTranslating) {
+                    silenceTimer = setTimeout(() => { if(els.source.value.trim()) handleInputSubmit(); }, 1500);
+                }
+            };
+        } else {
+            els.mic.style.display = 'none';
+        }
+
+        function toggleRecording() {
+            if(!recognition) return;
+            if(isRecording) stopRecording(); else startRecording();
+        }
+        function startRecording() {
+            finalTranscript = els.source.value.trim() || ''; isRecording = true; safeStartRecognition();
+        }
+        function stopRecording() { isRecording = false; recognition.stop(); clearTimeout(silenceTimer); updateMicUI(false); }
+        function safeStartRecognition() { try { recognition.start(); } catch(e){} }
+        function updateMicUI(active) {
+            if(active) { els.mic.classList.add('bg-red-500','text-white','recording-pulse'); els.mic.classList.remove('bg-white','text-gray-500'); els.voiceOverlay.classList.remove('hidden'); }
+            else { els.mic.classList.remove('bg-red-500','text-white','recording-pulse'); els.mic.classList.add('bg-white','text-gray-500'); els.voiceOverlay.classList.add('hidden'); }
+        }
+
+        init();
+    </script>
+</body>
+</html>
