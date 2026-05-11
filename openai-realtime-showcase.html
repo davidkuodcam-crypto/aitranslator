@@ -763,18 +763,6 @@
                 ws.onopen = () => {
                     setStatus('連線成功！正在寫入系統提示詞與註冊工具...');
                     
-                    let langName = "Traditional Chinese (繁體中文, zh-TW)";
-                    if (activeMode === 'assistant') {
-                        const langVal = assistantLangSelect.value;
-                        if (langVal === 'en') langName = "English";
-                        else if (langVal === 'ja') langName = "Japanese (日本語)";
-                        else if (langVal === 'ko') langName = "Korean (한국어)";
-                        else if (langVal === 'fr') langName = "French (Français)";
-                    }
-                    
-                    // 強制要求全面使用繁體中文的最高級別指令
-                    const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese (简体中文) unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
-
                     let sessionConfig = {
                         input_audio_format: "pcm16",
                         input_audio_transcription: { model: "whisper-1" },
@@ -787,6 +775,16 @@
                     };
 
                     if (activeMode === 'assistant') {
+                        let langName = "Traditional Chinese (繁體中文, zh-TW)";
+                        const langVal = assistantLangSelect.value;
+                        if (langVal === 'en') langName = "English";
+                        else if (langVal === 'ja') langName = "Japanese (日本語)";
+                        else if (langVal === 'ko') langName = "Korean (한국어)";
+                        else if (langVal === 'fr') langName = "French (Français)";
+                        
+                        // 助理模式的語言防護
+                        const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese (简体中文) unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
+
                         const role = customPromptInput.value.trim() || "得力助手";
                         sessionConfig.modalities = ["text", "audio"];
                         sessionConfig.voice = voiceSelect.value;
@@ -835,10 +833,15 @@
                         if (translateVoiceToggle.checked) {
                             sessionConfig.voice = "alloy";
                         }
-                        sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + dynamicLangConstraint;
+                        // 翻譯模式的獨立語言防護 (避免與翻譯目標語言衝突)
+                        const translateConstraint = `\n\nCRITICAL INSTRUCTION: You MUST translate the user's speech into ${targetLangName}. Never use Simplified Chinese.`;
+                        sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + translateConstraint;
+                        
                     } else if (activeMode === 'whisper') {
                         sessionConfig.modalities = ["text"];
-                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user and accurately transcribe their speech into Traditional Chinese (繁體中文). DO NOT generate any text response other than the transcription.` + dynamicLangConstraint;
+                        // 聽寫模式的獨立語言防護
+                        const whisperConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use Traditional Chinese (繁體中文, zh-TW) for transcriptions. Never use Simplified Chinese (简体中文). Ensure all Chinese characters are Traditional Chinese.`;
+                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user and accurately transcribe their speech into Traditional Chinese (繁體中文). DO NOT generate any text response other than the transcription.` + whisperConstraint;
                     }
 
                     ws.send(JSON.stringify({
