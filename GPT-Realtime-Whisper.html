@@ -36,7 +36,7 @@
                 </div>
             </div>
 
-            <!-- 全域設定：API Key (獨立於分頁之外) -->
+            <!-- 全域設定：API Key -->
             <div class="px-5 py-4 bg-gray-800 border-b border-gray-700 flex flex-col md:flex-row items-center gap-4">
                 <label class="whitespace-nowrap text-sm font-medium text-gray-400 flex items-center gap-1">
                     <i data-lucide="key" class="w-4 h-4"></i> 全域設定：API Key
@@ -52,7 +52,7 @@
             <!-- 三大功能分頁 Tabs -->
             <div class="flex flex-col md:flex-row bg-gray-800/50 border-b border-gray-700">
                 <button onclick="switchTab('assistant')" id="tab-assistant" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active">
-                    <i data-lucide="bot" class="w-4 h-4"></i> GPT-Realtime-2 (語音對話助理)
+                    <i data-lucide="bot" class="w-4 h-4"></i> GPT-Realtime-2 (含工具調用)
                 </button>
                 <button onclick="switchTab('translate')" id="tab-translate" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive">
                     <i data-lucide="globe" class="w-4 h-4"></i> GPT-Realtime-Translate (即時翻譯)
@@ -77,13 +77,13 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                     <div class="md:col-span-8">
                         <label class="block text-sm font-medium text-gray-400 mb-1">功能參數設定</label>
-                        <!-- 翻譯語言選擇 (僅在翻譯模式顯示) -->
+                        <!-- 翻譯語言選擇 -->
                         <select id="targetLanguageSelect" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
                             <option value="en">翻成：英文 (English)</option>
                             <option value="ja">翻成：日文 (日本語)</option>
                             <option value="vi">翻成：越南文 (Tiếng Việt)</option>
                         </select>
-                        <!-- 助理角色選擇 (僅在助理模式顯示) -->
+                        <!-- 助理角色選擇 -->
                         <div id="assistantSettings" class="flex gap-2">
                             <select id="assistantRoleSelect" class="w-2/3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
                                 <option value="招生顧問">角色：文藻外語大學招生顧問</option>
@@ -96,7 +96,7 @@
                                 <option value="shimmer">柔和女聲 (Shimmer)</option>
                             </select>
                         </div>
-                        <!-- 聽寫提示 (僅在聽寫模式顯示) -->
+                        <!-- 聽寫提示 -->
                         <div id="whisperNotice" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-400 flex items-center gap-2">
                             <i data-lucide="info" class="w-4 h-4"></i> 此模式無參數需設定，系統將進行純轉錄 (無 AI 回應)。
                         </div>
@@ -162,7 +162,7 @@
                     </div>
                 </div>
                 
-                <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 scroll-smooth relative">
+                <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 scroll-smooth relative whitespace-pre-wrap">
                     <!-- 歷史紀錄將插入於此 -->
                     
                     <!-- 正在講話的即時區塊 -->
@@ -205,8 +205,8 @@
 
         // WebRTC & WebSocket 相關變數
         let ws = null;
-        let audioContext = null; // 用於播放 AI 聲音的 AudioContext
-        let micAudioContext = null; // 用於擷取麥克風的 AudioContext
+        let audioContext = null; 
+        let micAudioContext = null; 
         let mediaStream = null;
         let processor = null;
         let timerId = null;
@@ -247,9 +247,9 @@
 
         // --- 初始化解說文字 ---
         const explanations = {
-            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音對話助理模式)：</strong><br>
-                        此模式下，AI 具備<strong>「原生聽說能力」</strong>！您可以選擇角色與聲音，對它講話後，<strong>它會直接開口用語音回答您</strong>。<br>
-                        <em>測試建議：選擇「招生顧問」，然後隨便跟它聊天，聽聽它的語氣與反應速度。</em>`,
+            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音對話助理模式 + 工具調用)：</strong><br>
+                        此模式下，AI 具備<strong>「原生聽說能力」</strong>，並且已經在後台連接了虛擬招生資料庫！<br>
+                        <em>🔥 神奇測試建議：請選擇「招生顧問」，然後用語音問它：<span class="text-yellow-400">「幫我查一下日文科的入學門檻？」</span> 觀察它如何中斷聊天，自動去撈取資料，再用語音回報給您！</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 即時翻譯模式)：</strong><br>
                         此模式關閉 AI 語音，純做文字翻譯。<br>
                         <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，主打「超低延遲的停頓後翻譯」。`,
@@ -258,7 +258,6 @@
                         <em>測試建議：直接念一段新聞稿，觀察繁體中文字的準確度。</em>`
         };
 
-        // --- 初始化設定 ---
         const savedApiKey = localStorage.getItem('openai_api_key');
         if (savedApiKey) { apiKeyInput.value = savedApiKey; }
         apiKeyInput.addEventListener('change', (e) => localStorage.setItem('openai_api_key', e.target.value));
@@ -272,17 +271,13 @@
             }
             activeMode = mode;
             
-            // UI 樣式切換
             ['assistant', 'translate', 'whisper'].forEach(m => {
                 const btn = document.getElementById(`tab-${m}`);
-                if (m === mode) {
-                    btn.className = "flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active";
-                } else {
-                    btn.className = "flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive";
-                }
+                btn.className = m === mode 
+                    ? "flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active"
+                    : "flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive";
             });
 
-            // 參數設定區塊切換
             targetLanguageSelect.classList.add('hidden');
             assistantSettings.classList.add('hidden');
             whisperNotice.classList.add('hidden');
@@ -294,15 +289,13 @@
             } else if (mode === 'assistant') {
                 assistantSettings.classList.remove('hidden');
                 assistantSettings.classList.add('flex');
-                chatBoxTitle.textContent = "AI 語音助理對話紀錄";
+                chatBoxTitle.textContent = "AI 語音助理 (支援外部資料查詢)";
                 document.getElementById('aiLabel').textContent = "AI 回應：";
             } else if (mode === 'whisper') {
                 whisperNotice.classList.remove('hidden');
                 whisperNotice.classList.add('flex');
                 chatBoxTitle.textContent = "會議逐字稿 (僅轉錄)";
             }
-
-            // 更新解說文字
             explanationContainer.innerHTML = explanations[mode];
         };
 
@@ -360,23 +353,20 @@
             transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
         }
 
-        // --- 音訊播放函數 (解碼 OpenAI 回傳的 Base64 PCM16 音訊) ---
+        // --- 音訊播放函數 ---
         function playAudioDelta(base64Data) {
             if (!audioContext) return;
             const binaryStr = atob(base64Data);
             const len = binaryStr.length;
             const bytes = new Uint8Array(len);
-            for (let i = 0; i < len; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
-            }
-            // 轉為 Int16
+            for (let i = 0; i < len; i++) { bytes[i] = binaryStr.charCodeAt(i); }
+            
             const int16Array = new Int16Array(bytes.buffer);
             const float32Array = new Float32Array(int16Array.length);
             for (let i = 0; i < int16Array.length; i++) {
-                float32Array[i] = int16Array[i] / 0x7FFF; // 正規化到 -1.0 ~ 1.0
+                float32Array[i] = int16Array[i] / 0x7FFF;
             }
             
-            // OpenAI 回傳的是 24kHz 音訊
             const buffer = audioContext.createBuffer(1, float32Array.length, 24000);
             buffer.getChannelData(0).set(float32Array);
             
@@ -385,26 +375,71 @@
             source.connect(audioContext.destination);
             
             const currentTime = audioContext.currentTime;
-            // 確保排隊播放，不會疊音
-            if (nextPlayTime < currentTime) {
-                nextPlayTime = currentTime;
-            }
+            if (nextPlayTime < currentTime) { nextPlayTime = currentTime; }
             source.start(nextPlayTime);
             nextPlayTime += buffer.duration;
             
-            // 記錄 source 以便隨時停止
             activeAudioNodes.push(source);
-            source.onended = () => {
-                activeAudioNodes = activeAudioNodes.filter(n => n !== source);
-            };
+            source.onended = () => { activeAudioNodes = activeAudioNodes.filter(n => n !== source); };
         }
 
         function stopAllAudio() {
-            activeAudioNodes.forEach(source => {
-                try { source.stop(); } catch(e) {}
-            });
+            activeAudioNodes.forEach(source => { try { source.stop(); } catch(e) {} });
             activeAudioNodes = [];
             nextPlayTime = 0;
+        }
+
+        // --- 工具調用 (Function Calling) 模擬後台 ---
+        function handleToolCall(callId, name, argsString) {
+            console.log(`[Tool Called] Name: ${name}, Args: ${argsString}`);
+            
+            // 在畫面上給予使用者回饋 (顯示系統正在動作)
+            currentTranslationText += `\n\n[⚙️ 系統查詢中：${name}...]\n`;
+            updateTranscriptUI();
+
+            setTimeout(() => {
+                let result = { status: "success", data: "查無此科系資料" };
+                try {
+                    const args = JSON.parse(argsString);
+                    const dept = args.department || "未知科系";
+                    
+                    // 模擬文藻招生資料庫
+                    const db = {
+                        "日文": "日文科的錄取門檻大約為 2A3B 或 1A4B。特色是全台唯二的五專日文科，並有豐富的赴日交換機會。",
+                        "英文": "英文科的錄取門檻大約為 3A2B。注重全英語授課環境與國際溝通能力培養。",
+                        "法文": "法文科的錄取門檻大約為 5B (含2個B+)。特色是結合歐盟文化與語言訓練。",
+                        "德文": "德文科的錄取門檻大約為 5B。注重工業與商業德語應用。",
+                        "西班牙文": "西班牙文科的錄取門檻大約為 5B。是中南美洲經貿人才的搖籃。"
+                    };
+                    
+                    for (const key in db) {
+                        if (dept.includes(key) || key.includes(dept)) {
+                            result.data = `資料庫回傳結果：${db[key]}`;
+                            break;
+                        }
+                    }
+                } catch(e) {
+                    result.status = "error";
+                    result.data = e.message;
+                }
+
+                // 透過 WebSocket 將查詢結果送回給 OpenAI
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: "conversation.item.create",
+                        item: {
+                            type: "function_call_output",
+                            call_id: callId,
+                            output: JSON.stringify(result)
+                        }
+                    }));
+                    // 要求 OpenAI 根據這份資料產生語音回覆
+                    ws.send(JSON.stringify({ type: "response.create" }));
+                    
+                    currentTranslationText += `[✅ 資料撈取完成，AI 解讀中...]\n`;
+                    updateTranscriptUI();
+                }
+            }, 800); // 模擬 0.8 秒的資料庫查詢延遲
         }
 
         // --- UI 更新邏輯 ---
@@ -533,7 +568,6 @@
 
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 micAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-                // 初始化播放音訊的 Context，必須在使用者點擊後建立
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
                 
                 const source = micAudioContext.createMediaStreamSource(mediaStream);
@@ -603,46 +637,55 @@
                 ]);
 
                 ws.onopen = () => {
-                    setStatus('連線成功！正在寫入系統提示詞 (System Prompt)...');
+                    setStatus('連線成功！正在寫入系統提示詞與註冊工具...');
                     
-                    let systemInstructions = "";
-                    let modalities = ["text"];
-                    let voice = "alloy";
-
-                    // 強制要求使用繁體中文的底層指令，避免變成簡體
                     const zhTWConstraint = "\n\nCRITICAL INSTRUCTION: You MUST use Traditional Chinese (繁體中文, zh-TW) for all text generation, transcriptions, and responses. Never use Simplified Chinese.";
+
+                    let sessionConfig = {
+                        input_audio_format: "pcm16",
+                        input_audio_transcription: { model: "whisper-1" },
+                        turn_detection: {
+                            type: "server_vad",
+                            threshold: 0.5,
+                            prefix_padding_ms: 300, 
+                            silence_duration_ms: 500
+                        }
+                    };
 
                     if (activeMode === 'assistant') {
                         const role = assistantRoleSelect.value;
-                        voice = voiceSelect.value;
-                        modalities = ["text", "audio"]; // 關鍵：開啟 audio 回傳！
-                        systemInstructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio.`;
+                        sessionConfig.modalities = ["text", "audio"];
+                        sessionConfig.voice = voiceSelect.value;
+                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks about admission requirements, department information, or anything related to enrollment (例如：入學門檻、特色), YOU MUST ALWAYS use the get_admission_info tool to search for accurate data before answering.` + zhTWConstraint;
+                        
+                        // ✨ 註冊工具 (Tool Calling)
+                        sessionConfig.tools = [{
+                            type: "function",
+                            name: "get_admission_info",
+                            description: "獲取文藻外語大學五專部各科系的入學門檻與特色資訊",
+                            parameters: {
+                                type: "object",
+                                properties: {
+                                    department: { type: "string", description: "科系名稱，例如：英文科、法文科、德文科、西班牙文科、日文科" }
+                                },
+                                required: ["department"]
+                            }
+                        }];
+                        sessionConfig.tool_choice = "auto";
+
                     } else if (activeMode === 'translate') {
                         const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
-                        systemInstructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.`;
+                        sessionConfig.modalities = ["text"];
+                        sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + zhTWConstraint;
                     } else if (activeMode === 'whisper') {
-                        systemInstructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.`;
+                        sessionConfig.modalities = ["text"];
+                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.` + zhTWConstraint;
                     }
 
-                    systemInstructions += zhTWConstraint;
-
-                    const sessionUpdate = {
+                    ws.send(JSON.stringify({
                         type: "session.update",
-                        session: {
-                            modalities: modalities,
-                            instructions: systemInstructions,
-                            voice: voice,
-                            input_audio_format: "pcm16",
-                            input_audio_transcription: { model: "whisper-1" },
-                            turn_detection: {
-                                type: "server_vad",
-                                threshold: 0.5,
-                                prefix_padding_ms: 300, 
-                                silence_duration_ms: 500
-                            }
-                        }
-                    };
-                    ws.send(JSON.stringify(sessionUpdate));
+                        session: sessionConfig
+                    }));
                 };
 
                 ws.onmessage = (event) => {
@@ -668,7 +711,6 @@
                             }
                             break;
                             
-                        // 處理文字串流 (翻譯模式用)
                         case 'response.text.delta':
                             if (activeMode === 'translate') {
                                 currentTranslationText += message.delta;
@@ -676,7 +718,6 @@
                             }
                             break;
 
-                        // 處理語音轉文字的串流 (助理模式用，因為開啟了 audio modality)
                         case 'response.audio_transcript.delta':
                             if (activeMode === 'assistant') {
                                 currentTranslationText += message.delta;
@@ -684,14 +725,19 @@
                             }
                             break;
 
-                        // 接收到 OpenAI 回傳的語音片段！立刻播放！
                         case 'response.audio.delta':
                             if (activeMode === 'assistant') {
                                 playAudioDelta(message.delta);
                             }
                             break;
 
-                        // 使用者講話打斷了 AI，立刻停止 AI 正在播放的聲音
+                        // ✨ 攔截工具呼叫事件
+                        case 'response.function_call_arguments.done':
+                            if (activeMode === 'assistant') {
+                                handleToolCall(message.call_id, message.name, message.arguments);
+                            }
+                            break;
+
                         case 'input_audio_buffer.speech_started':
                             stopAllAudio();
                             break;
