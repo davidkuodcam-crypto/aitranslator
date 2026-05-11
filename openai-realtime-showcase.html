@@ -77,12 +77,18 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
                     <div class="md:col-span-8">
                         <label class="block text-sm font-medium text-gray-400 mb-1">功能參數設定</label>
-                        <!-- 翻譯語言選擇 -->
-                        <select id="targetLanguageSelect" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                            <option value="en">翻成：英文 (English)</option>
-                            <option value="ja">翻成：日文 (日本語)</option>
-                            <option value="vi">翻成：越南文 (Tiếng Việt)</option>
-                        </select>
+                        <!-- 翻譯語言選擇與語音勾選 -->
+                        <div id="translateSettings" class="hidden w-full gap-2">
+                            <select id="targetLanguageSelect" class="w-2/3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                <option value="en">翻成：英文 (English)</option>
+                                <option value="ja">翻成：日文 (日本語)</option>
+                                <option value="vi">翻成：越南文 (Tiếng Việt)</option>
+                            </select>
+                            <label class="w-1/3 flex items-center justify-center gap-2 text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 cursor-pointer hover:bg-gray-800 transition-colors">
+                                <input type="checkbox" id="translateVoiceToggle" class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900">
+                                語音朗讀
+                            </label>
+                        </div>
                         <!-- 助理角色選擇 -->
                         <div id="assistantSettings" class="flex flex-col gap-2 w-full">
                             <div class="flex gap-2 w-full">
@@ -111,7 +117,6 @@
                         <div id="toolSelectionContainer" class="flex flex-col gap-2 w-full mt-3">
                             <span class="text-xs text-gray-400">外部工具調用清單 (Agent 能力展示)：</span>
                             <div class="flex flex-wrap gap-4">
-                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolAdmission" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 文藻招生資料庫</label>
                                 <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolWebSearch" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 維基百科搜尋</label>
                                 <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolTime" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 當前系統時間</label>
                             </div>
@@ -226,14 +231,16 @@
 
         // --- DOM 元素 ---
         const apiKeyInput = document.getElementById('apiKeyInput');
+        const translateSettings = document.getElementById('translateSettings');
         const targetLanguageSelect = document.getElementById('targetLanguageSelect');
+        const translateVoiceToggle = document.getElementById('translateVoiceToggle');
+        
         const assistantSettings = document.getElementById('assistantSettings');
         const customPromptInput = document.getElementById('customPromptInput');
         const voiceSelect = document.getElementById('voiceSelect');
         const assistantLangSelect = document.getElementById('assistantLangSelect');
         const whisperNotice = document.getElementById('whisperNotice');
         const toolSelectionContainer = document.getElementById('toolSelectionContainer');
-        const toolAdmission = document.getElementById('toolAdmission');
         const toolWebSearch = document.getElementById('toolWebSearch');
         const toolTime = document.getElementById('toolTime');
         
@@ -258,7 +265,7 @@
         const transcriptContainer = document.getElementById('transcriptContainer');
 
         // 初始化預設單價
-        rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
+        updateRateDisplay();
 
         // --- 初始化解說文字 ---
         const explanations = {
@@ -266,7 +273,7 @@
                         您可以自由輸入扮演角色，並勾選它能調用的工具。如果要求它講外文，會自動在文字附上中文翻譯。<br>
                         <em>🔥 神奇測試建議：勾選「系統時間」並問它：「現在幾點？」 或 勾選「維基百科搜尋」問它：「文藻外語大學現任校長是誰？」</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 即時翻譯模式)：</strong><br>
-                        此模式關閉 AI 語音，純做文字翻譯。<br>
+                        純做文字翻譯，您也可以勾選「語音朗讀」讓 AI 把翻譯結果唸出來。<br>
                         <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，主打「超低延遲的停頓後翻譯」。`,
             whisper:   `<strong>💡 玩法解說 (GPT-Realtime-Whisper 即時聽寫模式)：</strong><br>
                         關閉 AI 回應與翻譯，專注於「零延遲語音轉文字」。已強制鎖定輸出必須為繁體中文。<br>
@@ -277,6 +284,26 @@
         if (savedApiKey) { apiKeyInput.value = savedApiKey; }
         apiKeyInput.addEventListener('change', (e) => localStorage.setItem('openai_api_key', e.target.value));
         explanationContainer.innerHTML = explanations['assistant'];
+
+        // --- 費率更新函數 ---
+        function updateRateDisplay() {
+            if (activeMode === 'assistant') {
+                RATE_PER_MINUTE = 0.095;
+            } else if (activeMode === 'translate') {
+                RATE_PER_MINUTE = translateVoiceToggle.checked ? 0.095 : 0.034;
+            } else if (activeMode === 'whisper') {
+                RATE_PER_MINUTE = 0.017;
+            }
+            RATE_PER_SECOND = RATE_PER_MINUTE / 60;
+            rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
+        }
+
+        // 監聽即時翻譯的語音勾選框
+        translateVoiceToggle.addEventListener('change', () => {
+            if (activeMode === 'translate') {
+                updateRateDisplay();
+            }
+        });
 
         // --- 分頁切換邏輯 ---
         window.switchTab = function(mode) {
@@ -293,32 +320,30 @@
                     : "flex-1 py-3 px-2 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive";
             });
 
-            targetLanguageSelect.classList.add('hidden');
+            translateSettings.classList.add('hidden');
+            translateSettings.classList.remove('flex');
             assistantSettings.classList.add('hidden');
             toolSelectionContainer.classList.add('hidden');
             whisperNotice.classList.add('hidden');
 
-            // 切換模型時，單價立即更新
             if (mode === 'assistant') {
-                RATE_PER_MINUTE = 0.095;
                 assistantSettings.classList.remove('hidden');
                 assistantSettings.classList.add('flex');
                 toolSelectionContainer.classList.remove('hidden');
                 chatBoxTitle.textContent = "AI 語音助理 (支援外部資料查詢)";
                 document.getElementById('aiLabel').textContent = "AI 回應：";
             } else if (mode === 'translate') {
-                RATE_PER_MINUTE = 0.034;
-                targetLanguageSelect.classList.remove('hidden');
+                translateSettings.classList.remove('hidden');
+                translateSettings.classList.add('flex');
                 chatBoxTitle.textContent = "即時雙語對話";
                 document.getElementById('aiLabel').textContent = "即時翻譯：";
             } else if (mode === 'whisper') {
-                RATE_PER_MINUTE = 0.017;
                 whisperNotice.classList.remove('hidden');
                 whisperNotice.classList.add('flex');
                 chatBoxTitle.textContent = "會議逐字稿 (僅轉錄)";
             }
-            RATE_PER_SECOND = RATE_PER_MINUTE / 60;
-            rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
+            
+            updateRateDisplay();
             
             // 切換模型時，交談文字立即清除
             transcripts = [];
@@ -630,12 +655,12 @@
             
             apiKeyInput.disabled = false;
             targetLanguageSelect.disabled = false;
+            translateVoiceToggle.disabled = false;
             customPromptInput.disabled = false;
             voiceSelect.disabled = false;
             assistantLangSelect.disabled = false;
-            toolAdmission.disabled = false;
-            toolWebSearch.disabled = false;
-            toolTime.disabled = false;
+            if (toolWebSearch) toolWebSearch.disabled = false;
+            if (toolTime) toolTime.disabled = false;
 
             recordingIndicator.classList.add('hidden');
             recordingIndicator.classList.remove('flex');
@@ -681,12 +706,12 @@
                 
                 apiKeyInput.disabled = true;
                 targetLanguageSelect.disabled = true;
+                translateVoiceToggle.disabled = true;
                 customPromptInput.disabled = true;
                 voiceSelect.disabled = true;
                 assistantLangSelect.disabled = true;
-                toolAdmission.disabled = true;
-                toolWebSearch.disabled = true;
-                toolTime.disabled = true;
+                if (toolWebSearch) toolWebSearch.disabled = true;
+                if (toolTime) toolTime.disabled = true;
 
                 recordingIndicator.classList.remove('hidden');
                 recordingIndicator.classList.add('flex');
@@ -720,6 +745,7 @@
             toggleRecordingBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>連線準備中...</span>`;
             lucide.createIcons();
             
+            updateRateDisplay();
             sessionCost = 0;
             sessionSeconds = 0;
             updateBillingUI();
@@ -745,7 +771,9 @@
                         else if (langVal === 'ko') langName = "Korean (한국어)";
                         else if (langVal === 'fr') langName = "French (Français)";
                     }
-                    const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese unless explicitly requested by the user.`;
+                    
+                    // 強制要求全面使用繁體中文的最高級別指令
+                    const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese (简体中文) unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
 
                     let sessionConfig = {
                         input_audio_format: "pcm16",
@@ -769,23 +797,11 @@
                             extraInstruction += `\nCRITICAL INSTRUCTION: You must speak in ${langName}. However, your TEXT output MUST be formatted as "[${langName} response] (中文翻譯：[Traditional Chinese translation])". Your AUDIO output should ONLY be in ${langName}.`;
                         }
                         
-                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio.` + extraInstruction + dynamicLangConstraint;
+                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks for the latest news, weather, or real-time web search, use the 'search_web_information' tool. If you don't know the answer to a question, just say you don't know.` + extraInstruction + dynamicLangConstraint;
                         
                         // ✨ 根據勾選狀態動態註冊工具
                         sessionConfig.tools = [];
                         
-                        if (toolAdmission.checked) {
-                            sessionConfig.tools.push({
-                                type: "function",
-                                name: "get_admission_info",
-                                description: "獲取文藻外語大學五專部各科系的入學門檻與特色資訊",
-                                parameters: {
-                                    type: "object",
-                                    properties: { department: { type: "string", description: "科系名稱" } },
-                                    required: ["department"]
-                                }
-                            });
-                        }
                         if (toolWebSearch.checked) {
                             sessionConfig.tools.push({
                                 type: "function",
@@ -815,11 +831,14 @@
 
                     } else if (activeMode === 'translate') {
                         const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
-                        sessionConfig.modalities = ["text"];
+                        sessionConfig.modalities = translateVoiceToggle.checked ? ["text", "audio"] : ["text"];
+                        if (translateVoiceToggle.checked) {
+                            sessionConfig.voice = "alloy";
+                        }
                         sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + dynamicLangConstraint;
                     } else if (activeMode === 'whisper') {
                         sessionConfig.modalities = ["text"];
-                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.` + dynamicLangConstraint;
+                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user and accurately transcribe their speech into Traditional Chinese (繁體中文). DO NOT generate any text response other than the transcription.` + dynamicLangConstraint;
                     }
 
                     ws.send(JSON.stringify({
@@ -870,7 +889,7 @@
                             break;
 
                         case 'response.audio.delta':
-                            if (activeMode === 'assistant') {
+                            if (activeMode === 'assistant' || (activeMode === 'translate' && translateVoiceToggle.checked)) {
                                 playAudioDelta(message.delta);
                             }
                             clearIdleTimer(); // AI 正在講話，清除閒置計時
