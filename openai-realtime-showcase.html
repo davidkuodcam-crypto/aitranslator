@@ -884,7 +884,8 @@
                             break;
 
                         case 'response.audio_transcript.delta':
-                            if (activeMode === 'assistant') {
+                            // 修正：當翻譯模式勾選語音朗讀時，文字是透過 audio_transcript 回傳的
+                            if (activeMode === 'assistant' || activeMode === 'translate') {
                                 currentTranslationText += message.delta;
                                 updateTranscriptUI();
                             }
