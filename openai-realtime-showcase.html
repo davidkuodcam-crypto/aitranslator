@@ -84,16 +84,28 @@
                             <option value="vi">翻成：越南文 (Tiếng Việt)</option>
                         </select>
                         <!-- 助理角色選擇 -->
-                        <div id="assistantSettings" class="flex gap-2">
-                            <select id="assistantRoleSelect" class="w-2/3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                                <option value="招生顧問">角色：文藻外語大學招生顧問</option>
+                        <div id="assistantSettings" class="flex gap-2 w-full">
+                            <select id="assistantRoleSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                <option value="招生顧問">角色：文藻外語招生顧問</option>
                                 <option value="面試官">角色：嚴格的大學面試官</option>
                                 <option value="心靈導師">角色：溫柔的心靈導師</option>
                             </select>
-                            <select id="voiceSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                                <option value="alloy">女聲 (Alloy)</option>
+                            <select id="voiceSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                <option value="alloy">中性/女聲 (Alloy)</option>
                                 <option value="echo">男聲 (Echo)</option>
                                 <option value="shimmer">柔和女聲 (Shimmer)</option>
+                                <option value="ash">沉穩男聲 (Ash)</option>
+                                <option value="ballad">溫暖男聲 (Ballad)</option>
+                                <option value="coral">活潑女聲 (Coral)</option>
+                                <option value="sage">知性女聲 (Sage)</option>
+                                <option value="verse">清亮女聲 (Verse)</option>
+                            </select>
+                            <select id="assistantLangSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                <option value="zh-TW">回答：繁體中文</option>
+                                <option value="en">回答：英文 (English)</option>
+                                <option value="ja">回答：日文 (日本語)</option>
+                                <option value="ko">回答：韓文 (한국어)</option>
+                                <option value="fr">回答：法文 (Français)</option>
                             </select>
                         </div>
                         <!-- 聽寫提示 -->
@@ -125,24 +137,10 @@
                     <div class="text-xs text-gray-400">本次連線時間</div>
                 </div>
 
-                <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700 relative overflow-hidden">
-                    <div class="flex justify-between items-start mb-3">
-                        <i data-lucide="dollar-sign" class="w-6 h-6 text-green-400"></i>
-                        <div class="text-right">
-                            <div id="sessionCostDisplay" class="text-2xl font-mono font-bold text-red-400">$0.0000</div>
-                            <div class="text-xs text-gray-400 mt-1">本次預估費用</div>
-                        </div>
-                    </div>
-                    
-                    <div class="pt-3 border-t border-gray-700">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="text-xs text-gray-400">剩餘預估餘額</span>
-                            <span id="remainingBudgetDisplay" class="text-sm font-mono font-bold text-green-500">$5.0000</span>
-                        </div>
-                        <div class="w-full bg-gray-900 rounded-full h-1.5 mt-2">
-                            <div id="budgetProgressBar" class="h-1.5 rounded-full bg-green-500 transition-all duration-1000" style="width: 100%"></div>
-                        </div>
-                    </div>
+                <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700 relative overflow-hidden flex flex-col items-center justify-center">
+                    <i data-lucide="dollar-sign" class="w-6 h-6 text-green-400 mb-2"></i>
+                    <div id="sessionCostDisplay" class="text-3xl font-mono font-bold text-red-400 mb-1">$0.0000</div>
+                    <div class="text-xs text-gray-400 text-center">本次預估費用<br><span id="rateDisplay" class="text-[10px] text-gray-500">(費率依模型變動)</span></div>
                 </div>
             </div>
 
@@ -192,12 +190,11 @@
         lucide.createIcons();
 
         // --- 狀態與常數 ---
-        const RATE_PER_MINUTE = 0.034;
-        const RATE_PER_SECOND = RATE_PER_MINUTE / 60;
+        let RATE_PER_MINUTE = 0.034;
+        let RATE_PER_SECOND = RATE_PER_MINUTE / 60;
         let isRecording = false;
         let sessionSeconds = 0;
         let sessionCost = 0;
-        let budget = 5.00;
         let transcripts = [];
         let currentTranscriptText = '';
         let currentTranslationText = '';
@@ -210,6 +207,7 @@
         let mediaStream = null;
         let processor = null;
         let timerId = null;
+        let idleTimeoutId = null; // 閒置斷線計時器
         
         // 播放聲音的排程時間追蹤
         let nextPlayTime = 0;
@@ -221,6 +219,7 @@
         const assistantSettings = document.getElementById('assistantSettings');
         const assistantRoleSelect = document.getElementById('assistantRoleSelect');
         const voiceSelect = document.getElementById('voiceSelect');
+        const assistantLangSelect = document.getElementById('assistantLangSelect');
         const whisperNotice = document.getElementById('whisperNotice');
         
         const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
@@ -236,8 +235,7 @@
         
         const sessionTimeDisplay = document.getElementById('sessionTimeDisplay');
         const sessionCostDisplay = document.getElementById('sessionCostDisplay');
-        const remainingBudgetDisplay = document.getElementById('remainingBudgetDisplay');
-        const budgetProgressBar = document.getElementById('budgetProgressBar');
+        const rateDisplay = document.getElementById('rateDisplay');
         
         const recordingIndicator = document.getElementById('recordingIndicator');
         const transcriptContainer = document.getElementById('transcriptContainer');
@@ -389,35 +387,58 @@
             nextPlayTime = 0;
         }
 
+        // --- 閒置斷線邏輯 ---
+        function resetIdleTimer() {
+            if (idleTimeoutId) clearTimeout(idleTimeoutId);
+            if (isRecording) {
+                idleTimeoutId = setTimeout(() => {
+                    showError('已閒置超過 10 秒沒有講話，自動斷線以避免持續計費。');
+                    stopSession();
+                }, 10000);
+            }
+        }
+
+        function clearIdleTimer() {
+            if (idleTimeoutId) clearTimeout(idleTimeoutId);
+        }
+
         // --- 工具調用 (Function Calling) 模擬後台 ---
         function handleToolCall(callId, name, argsString) {
             console.log(`[Tool Called] Name: ${name}, Args: ${argsString}`);
             
             // 在畫面上給予使用者回饋 (顯示系統正在動作)
-            currentTranslationText += `\n\n[⚙️ 系統查詢中：${name}...]\n`;
+            currentTranslationText += `\n\n[⚙️ 系統調用工具中：${name}...]\n`;
             updateTranscriptUI();
 
             setTimeout(() => {
-                let result = { status: "success", data: "查無此科系資料" };
+                let result = { status: "success", data: "" };
                 try {
                     const args = JSON.parse(argsString);
-                    const dept = args.department || "未知科系";
                     
-                    // 模擬文藻招生資料庫
-                    const db = {
-                        "日文": "日文科的錄取門檻大約為 2A3B 或 1A4B。特色是全台唯二的五專日文科，並有豐富的赴日交換機會。",
-                        "英文": "英文科的錄取門檻大約為 3A2B。注重全英語授課環境與國際溝通能力培養。",
-                        "法文": "法文科的錄取門檻大約為 5B (含2個B+)。特色是結合歐盟文化與語言訓練。",
-                        "德文": "德文科的錄取門檻大約為 5B。注重工業與商業德語應用。",
-                        "西班牙文": "西班牙文科的錄取門檻大約為 5B。是中南美洲經貿人才的搖籃。"
-                    };
-                    
-                    for (const key in db) {
-                        if (dept.includes(key) || key.includes(dept)) {
-                            result.data = `資料庫回傳結果：${db[key]}`;
-                            break;
+                    if (name === "get_admission_info") {
+                        const dept = args.department || "未知科系";
+                        // 模擬文藻招生資料庫
+                        const db = {
+                            "日文": "日文科的錄取門檻大約為 2A3B 或 1A4B。特色是全台唯二的五專日文科，並有豐富的赴日交換機會。",
+                            "英文": "英文科的錄取門檻大約為 3A2B。注重全英語授課環境與國際溝通能力培養。",
+                            "法文": "法文科的錄取門檻大約為 5B (含2個B+)。特色是結合歐盟文化與語言訓練。",
+                            "德文": "德文科的錄取門檻大約為 5B。注重工業與商業德語應用。",
+                            "西班牙文": "西班牙文科的錄取門檻大約為 5B。是中南美洲經貿人才的搖籃。"
+                        };
+                        
+                        result.data = "查無此科系資料";
+                        for (const key in db) {
+                            if (dept.includes(key) || key.includes(dept)) {
+                                result.data = `資料庫回傳結果：${db[key]}`;
+                                break;
+                            }
                         }
+                    } else if (name === "search_web_information") {
+                        const query = args.query || "最新資訊";
+                        // 模擬上網搜尋引擎回傳結果
+                        result.data = `搜尋引擎回傳：關於「${query}」的最新資訊顯示，目前天氣穩定，全球科技新聞指出 AI 技術在 2026 年有重大進展，OpenAI 推出了支援即時上網查詢與工具調用的語音模型。`;
                     }
+                    
                 } catch(e) {
                     result.status = "error";
                     result.data = e.message;
@@ -439,20 +460,13 @@
                     currentTranslationText += `[✅ 資料撈取完成，AI 解讀中...]\n`;
                     updateTranscriptUI();
                 }
-            }, 800); // 模擬 0.8 秒的資料庫查詢延遲
+            }, 1000); // 模擬網路延遲
         }
 
         // --- UI 更新邏輯 ---
         function updateBillingUI() {
             sessionTimeDisplay.textContent = formatTime(sessionSeconds);
             sessionCostDisplay.textContent = `$${sessionCost.toFixed(4)}`;
-            const remainingBudget = Math.max(0, budget - sessionCost);
-            remainingBudgetDisplay.textContent = `$${remainingBudget.toFixed(4)}`;
-            const isLowBudget = remainingBudget < 0.5;
-            const progressPercentage = Math.min(100, Math.max(0, (remainingBudget / budget) * 100));
-            remainingBudgetDisplay.className = `text-sm font-mono font-bold ${isLowBudget ? 'text-red-500' : 'text-green-500'}`;
-            budgetProgressBar.style.width = `${progressPercentage}%`;
-            budgetProgressBar.className = `h-1.5 rounded-full transition-all duration-1000 ${isLowBudget ? 'bg-red-500' : 'bg-green-500'}`;
         }
 
         function updateTranscriptUI() {
@@ -534,6 +548,7 @@
             }
 
             if (timerId) { clearInterval(timerId); timerId = null; }
+            if (idleTimeoutId) { clearTimeout(idleTimeoutId); idleTimeoutId = null; }
 
             if(currentTranscriptText || currentTranslationText) {
                 transcripts.push({
@@ -625,6 +640,20 @@
             if (!apiKey) { showError('請輸入 OpenAI API Key'); return; }
 
             showError('');
+            
+            // 根據模型設定費率預估
+            if (activeMode === 'assistant') {
+                RATE_PER_MINUTE = 0.095; // 語音助理雙向處理，預估費率較高
+            } else if (activeMode === 'translate') {
+                RATE_PER_MINUTE = 0.034; // 即時翻譯
+            } else if (activeMode === 'whisper') {
+                RATE_PER_MINUTE = 0.017; // 單純轉錄最低
+            }
+            RATE_PER_SECOND = RATE_PER_MINUTE / 60;
+            rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
+            sessionCost = 0;
+            sessionSeconds = 0;
+            updateBillingUI();
 
             try {
                 setStatus('連線至 OpenAI Realtime API...');
@@ -639,7 +668,15 @@
                 ws.onopen = () => {
                     setStatus('連線成功！正在寫入系統提示詞與註冊工具...');
                     
-                    const zhTWConstraint = "\n\nCRITICAL INSTRUCTION: You MUST use Traditional Chinese (繁體中文, zh-TW) for all text generation, transcriptions, and responses. Never use Simplified Chinese.";
+                    let langName = "Traditional Chinese (繁體中文, zh-TW)";
+                    if (activeMode === 'assistant') {
+                        const langVal = assistantLangSelect.value;
+                        if (langVal === 'en') langName = "English";
+                        else if (langVal === 'ja') langName = "Japanese (日本語)";
+                        else if (langVal === 'ko') langName = "Korean (한국어)";
+                        else if (langVal === 'fr') langName = "French (Français)";
+                    }
+                    const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese unless explicitly requested by the user.`;
 
                     let sessionConfig = {
                         input_audio_format: "pcm16",
@@ -656,30 +693,44 @@
                         const role = assistantRoleSelect.value;
                         sessionConfig.modalities = ["text", "audio"];
                         sessionConfig.voice = voiceSelect.value;
-                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks about admission requirements, department information, or anything related to enrollment (例如：入學門檻、特色), YOU MUST ALWAYS use the get_admission_info tool to search for accurate data before answering.` + zhTWConstraint;
+                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks about admission requirements or department information, use the 'get_admission_info' tool. If the user asks for the latest news, weather, or real-time web search, use the 'search_web_information' tool.` + dynamicLangConstraint;
                         
-                        // ✨ 註冊工具 (Tool Calling)
-                        sessionConfig.tools = [{
-                            type: "function",
-                            name: "get_admission_info",
-                            description: "獲取文藻外語大學五專部各科系的入學門檻與特色資訊",
-                            parameters: {
-                                type: "object",
-                                properties: {
-                                    department: { type: "string", description: "科系名稱，例如：英文科、法文科、德文科、西班牙文科、日文科" }
-                                },
-                                required: ["department"]
+                        // ✨ 註冊多個工具 (Tool Calling)
+                        sessionConfig.tools = [
+                            {
+                                type: "function",
+                                name: "get_admission_info",
+                                description: "獲取文藻外語大學五專部各科系的入學門檻與特色資訊",
+                                parameters: {
+                                    type: "object",
+                                    properties: {
+                                        department: { type: "string", description: "科系名稱，例如：英文科、日文科" }
+                                    },
+                                    required: ["department"]
+                                }
+                            },
+                            {
+                                type: "function",
+                                name: "search_web_information",
+                                description: "上網搜尋最新的即時資訊、新聞、天氣或時事",
+                                parameters: {
+                                    type: "object",
+                                    properties: {
+                                        query: { type: "string", description: "要搜尋的關鍵字或問題" }
+                                    },
+                                    required: ["query"]
+                                }
                             }
-                        }];
+                        ];
                         sessionConfig.tool_choice = "auto";
 
                     } else if (activeMode === 'translate') {
                         const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
                         sessionConfig.modalities = ["text"];
-                        sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + zhTWConstraint;
+                        sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + dynamicLangConstraint;
                     } else if (activeMode === 'whisper') {
                         sessionConfig.modalities = ["text"];
-                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.` + zhTWConstraint;
+                        sessionConfig.instructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.` + dynamicLangConstraint;
                     }
 
                     ws.send(JSON.stringify({
@@ -695,6 +746,7 @@
                         case 'session.updated':
                             setStatus('大腦載入完成，請開始說話...');
                             startRecording();
+                            resetIdleTimer(); // 開始閒置計時
                             break;
                             
                         case 'conversation.item.input_audio_transcription.completed':
@@ -709,6 +761,7 @@
                                 currentTranscriptText = '';
                                 updateTranscriptUI();
                             }
+                            resetIdleTimer(); // 使用者講完話，重新計算閒置
                             break;
                             
                         case 'response.text.delta':
@@ -739,6 +792,7 @@
                             break;
 
                         case 'input_audio_buffer.speech_started':
+                            clearIdleTimer(); // 使用者開始講話，清除閒置計時
                             stopAllAudio();
                             break;
 
@@ -753,6 +807,7 @@
                                 currentTranslationText = '';
                                 updateTranscriptUI();
                             }
+                            resetIdleTimer(); // AI 回應完畢，重新計算閒置
                             break;
                             
                         case 'error':
@@ -785,10 +840,6 @@
             if (isRecording || ws) {
                 stopSession();
             } else {
-                if (budget - sessionCost <= 0) {
-                    showError('模擬餘額不足，請重整頁面。');
-                    return;
-                }
                 connectWebSocket();
             }
         });
