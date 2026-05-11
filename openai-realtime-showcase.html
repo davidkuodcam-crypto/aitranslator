@@ -161,7 +161,7 @@
             <!-- 右側：對話與翻譯區 -->
             <div class="lg:col-span-3 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 flex flex-col h-[550px]">
                 <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center rounded-t-2xl">
-                    <h2 id="chatBoxTitle" class="font-semibold text-gray-200">語音對話紀錄</h2>
+                    <h2 id="chatBoxTitle" class="font-semibold text-gray-200">語音對話紀錄 (最新訊息在最上方)</h2>
                     <div class="flex items-center gap-4">
                         <div id="recordingIndicator" class="hidden flex items-center gap-2">
                             <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
@@ -176,11 +176,8 @@
                 
                 <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 relative whitespace-pre-wrap flex flex-col">
                     
-                    <!-- 歷史紀錄容器 (正常順序，最新的在最底下) -->
-                    <div id="historyContainer" class="flex flex-col gap-6 w-full mb-6"></div>
-
-                    <!-- 正在講話的即時區塊 (接在歷史紀錄的最底下) -->
-                    <div id="currentSpeechContainer" class="hidden flex-col gap-2 max-w-[90%] opacity-90 pb-4">
+                    <!-- 正在講話的即時區塊 (永遠置頂) -->
+                    <div id="currentSpeechContainer" class="hidden flex-col gap-2 max-w-[90%] opacity-90 pb-4 border-b border-gray-700/50">
                         <!-- 原文 (使用者) -->
                         <div id="currentTranscript" class="flex flex-col gap-1 items-start">
                             <span class="text-xs text-gray-500 ml-1">您說的話 (轉錄中)：</span>
@@ -196,6 +193,10 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 歷史紀錄容器 (最新的在上方，接在即時區塊之下) -->
+                    <div id="historyContainer" class="flex flex-col gap-6 w-full mb-6"></div>
+
                 </div>
             </div>
 
@@ -276,7 +277,7 @@
                         純做文字翻譯，您也可以勾選「語音朗讀」讓 AI 把翻譯結果唸出來。<br>
                         <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，主打「超低延遲的停頓後翻譯」。`,
             whisper:   `<strong>💡 玩法解說 (GPT-Realtime-Whisper 即時聽寫模式)：</strong><br>
-                        關閉 AI 回應與翻譯，專注於「零延遲語音轉文字」。已強制鎖定輸出必須為繁體中文。<br>
+                        關閉 AI 回應與翻譯，專注於「零延遲語音轉文字」。系統已內建繁體轉換防護，確保畫面絕不出現簡體字。<br>
                         <em>測試建議：直接念一段新聞稿，觀察繁體中文字的準確度。</em>`
         };
 
@@ -284,6 +285,14 @@
         if (savedApiKey) { apiKeyInput.value = savedApiKey; }
         apiKeyInput.addEventListener('change', (e) => localStorage.setItem('openai_api_key', e.target.value));
         explanationContainer.innerHTML = explanations['assistant'];
+
+        // --- 強制繁體轉換器 (防止 Whisper 偶發性輸出簡體字) ---
+        const twMap = {"为":"為","什":"甚","么":"麼","译":"譯","这":"這","怎":"怎","变":"變","反":"反","馈":"饋","边":"邊","转":"轉","减":"減","题":"題","吗":"嗎","觉":"覺","视":"視","频":"頻","说":"說","话":"話","会":"會","开":"開","关":"關","发":"發","现":"現","实":"實","过":"過","样":"樣","对":"對","没":"沒","错":"錯","里":"裡","个":"個","们":"們","来":"來","让":"讓","给":"給","帮":"幫","点":"點","懂":"懂","听":"聽","写":"寫","读":"讀","记":"記","网":"網","页":"頁","图":"圖","电":"電","脑":"腦","机":"機","时":"時","间":"間","学":"學","长":"長","师":"師","员":"員","国":"國","产":"產","业":"業","无":"無","当":"當","够":"夠","维":"維","络":"絡","迟":"遲","缓":"緩","连":"連","接":"接","断":"斷","设":"設","备":"備","麦":"麥","克":"克","风":"風","权":"權","限":"限","测":"測","试":"試","结":"結","请":"請","问":"問","答":"答","谢":"謝","欢":"歡","迎":"迎","辞":"辭","职":"職","责":"責","任":"任","务":"務","系":"系","统":"統","误":"誤","尔":"爾","还":"還","办":"辦","确":"確","虽":"雖","设":"設","备":"備","麦":"麥","克":"克","风":"風","测":"測","试":"試","结":"結","果":"果","请":"請","问":"問","答":"答","谢":"謝","欢":"歡","迎":"迎","辞":"辭","职":"職","责":"責","任":"任","务":"務","系":"系","统":"統","错":"錯","误":"誤"};
+        function toTW(str) {
+            if (!str) return '';
+            // 替換字典內涵蓋的常見簡體字，其餘字元保持原樣（不會影響英文或其他語言）
+            return str.replace(/[\u4e00-\u9fa5]/g, char => twMap[char] || char);
+        }
 
         // --- 費率更新函數 ---
         function updateRateDisplay() {
@@ -455,13 +464,11 @@
             if (idleTimeoutId) clearTimeout(idleTimeoutId);
         }
 
-        // --- 自動平滑捲動到最下方 ---
-        function scrollToBottom() {
+        // --- 自動停留在最上方 ---
+        function scrollToTop() {
+            // 因為現在排版是最新訊息在上方，所以捲軸永遠鎖定在 Top 0 即可
             setTimeout(() => {
-                transcriptContainer.scrollTo({
-                    top: transcriptContainer.scrollHeight,
-                    behavior: 'smooth'
-                });
+                transcriptContainer.scrollTop = 0;
             }, 10);
         }
 
@@ -520,7 +527,7 @@
                         if (query.includes("文藻") && query.includes("校長")) {
                             result.data = "最新網路搜尋結果：文藻外語大學現任校長為莊慧玲教授（自2023年2月起就任）。";
                         } else {
-                            result.data = "網路搜尋失敗：" + e.message;
+                            result.data = "網路搜尋失败：" + e.message;
                         }
                     }
                 }
@@ -555,15 +562,15 @@
             // 清空歷史紀錄容器
             historyContainer.innerHTML = '';
 
-            // 歷史紀錄處理：正常順序 (舊的在上面，新的在下面)
-            transcripts.forEach((item) => {
+            // 歷史紀錄處理：將陣列反轉，最新的擺在最上面 (自動置頂免捲動)
+            transcripts.slice().reverse().forEach((item) => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'history-item flex flex-col gap-2 w-full pb-4 border-b border-gray-700/50';
                 
                 let html = `
                     <div class="flex flex-col gap-1 items-start">
                         <span class="text-xs text-gray-500 ml-1">使用者：</span>
-                        <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">${item.original ? item.original.trimStart() : ''}</div>
+                        <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">${item.original ? toTW(item.original).trimStart() : ''}</div>
                     </div>
                 `;
                 
@@ -574,7 +581,7 @@
                     html += `
                     <div class="flex flex-col gap-1 items-start mt-1">
                         <span class="text-xs text-indigo-400 ml-1">${label}</span>
-                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit max-w-[90%] px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium whitespace-pre-wrap">${item.translation.trimStart()}</div>
+                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit max-w-[90%] px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium whitespace-pre-wrap">${toTW(item.translation).trimStart()}</div>
                     </div>
                     `;
                 }
@@ -582,15 +589,14 @@
                 historyContainer.appendChild(itemDiv);
             });
 
-            // 處理即時區塊 (接在歷史紀錄的最下方)
+            // 處理即時區塊 (永遠固定在最上方)
             if (isRecording || currentTranscriptText || currentTranslationText) {
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
                 
                 const transcriptSpan = currentTranscriptEl.querySelector('.transcript-text');
                 if (currentTranscriptText) {
-                    // 使用 trimStart 確保文字不會有前導空白
-                    transcriptSpan.textContent = currentTranscriptText.trimStart();
+                    transcriptSpan.textContent = toTW(currentTranscriptText).trimStart();
                     transcriptSpan.className = "transcript-text text-gray-300";
                 } else {
                     transcriptSpan.textContent = "(聆聽中...)";
@@ -599,8 +605,7 @@
 
                 if (activeMode !== 'whisper' && currentTranslationText) {
                     currentTranslationEl.classList.remove('hidden');
-                    // 使用 trimStart 確保即時打字效果不會帶有前導空白
-                    currentTranslationEl.querySelector('.translation-text').textContent = currentTranslationText.trimStart();
+                    currentTranslationEl.querySelector('.translation-text').textContent = toTW(currentTranslationText).trimStart();
                 } else {
                     currentTranslationEl.classList.add('hidden');
                 }
@@ -609,8 +614,8 @@
                 currentSpeechContainer.classList.remove('flex');
             }
             
-            // 每次更新畫面都觸發自動捲動到底部
-            scrollToBottom();
+            // 每次更新畫面確保鎖定在最上方，免除滑動捲軸的困擾
+            scrollToTop();
         }
 
         // --- 核心邏輯 ---
@@ -782,7 +787,7 @@
                         else if (langVal === 'ko') langName = "Korean (한국어)";
                         else if (langVal === 'fr') langName = "French (Français)";
                         
-                        // 助理模式的語言防護
+                        // 助理模式專屬的語言防護
                         const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese (简体中文) unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
 
                         const role = customPromptInput.value.trim() || "得力助手";
@@ -828,18 +833,21 @@
                         }
 
                     } else if (activeMode === 'translate') {
-                        const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
+                        // 精準擷取目標語言名稱
+                        const langMap = { "en": "English", "ja": "Japanese (日本語)", "vi": "Vietnamese (Tiếng Việt)" };
+                        const targetLangName = langMap[targetLanguageSelect.value] || "English";
+                        
                         sessionConfig.modalities = translateVoiceToggle.checked ? ["text", "audio"] : ["text"];
                         if (translateVoiceToggle.checked) {
                             sessionConfig.voice = "alloy";
                         }
-                        // 翻譯模式的獨立語言防護 (避免與翻譯目標語言衝突)
-                        const translateConstraint = `\n\nCRITICAL INSTRUCTION: You MUST translate the user's speech into ${targetLangName}. Never use Simplified Chinese.`;
+                        // 翻譯模式專屬語言防護 (避免覆蓋目標語言)
+                        const translateConstraint = `\n\nCRITICAL INSTRUCTION: You MUST translate the user's speech into ${targetLangName}. NEVER output Simplified Chinese. If transcribing the user's Chinese speech, use Traditional Chinese.`;
                         sessionConfig.instructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.` + translateConstraint;
                         
                     } else if (activeMode === 'whisper') {
                         sessionConfig.modalities = ["text"];
-                        // 聽寫模式的獨立語言防護
+                        // 聽寫模式專屬語言防護
                         const whisperConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use Traditional Chinese (繁體中文, zh-TW) for transcriptions. Never use Simplified Chinese (简体中文). Ensure all Chinese characters are Traditional Chinese.`;
                         sessionConfig.instructions = `You are a dictation assistant. Listen to the user and accurately transcribe their speech into Traditional Chinese (繁體中文). DO NOT generate any text response other than the transcription.` + whisperConstraint;
                     }
