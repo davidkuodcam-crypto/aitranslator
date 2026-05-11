@@ -9,21 +9,10 @@
     <!-- 引入 Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        /* 自訂捲軸樣式 */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1f2937;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #4b5563;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #6b7280;
-        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
     </style>
 </head>
 <body class="min-h-screen bg-gray-900 text-gray-100 font-sans p-4 md:p-6">
@@ -43,9 +32,9 @@
                 </div>
             </div>
 
-            <div id="errorContainer" class="hidden mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
-                <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
-                <span id="errorMessage"></span>
+            <div id="errorContainer" class="hidden mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-start gap-2 text-red-400 text-sm">
+                <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5"></i>
+                <span id="errorMessage" class="break-all"></span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
@@ -79,7 +68,7 @@
                         class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
                     >
                         <i data-lucide="mic" id="btnIcon" class="w-4 h-4"></i> 
-                        <span id="btnText">開始說話</span>
+                        <span id="btnText">開始連線</span>
                     </button>
                 </div>
             </div>
@@ -128,8 +117,6 @@
                 </div>
                 
                 <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 scroll-smooth">
-                    <!-- 歷史紀錄將插入於此 -->
-                    
                     <!-- 正在講話的即時區塊 -->
                     <div id="currentSpeechContainer" class="hidden flex-col gap-1 max-w-[85%] opacity-80">
                         <div id="currentTranscript" class="hidden text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700 border-dashed">
@@ -151,7 +138,6 @@
     </div>
 
     <script>
-        // 初始化 Lucide Icons
         lucide.createIcons();
 
         // --- 狀態與常數 ---
@@ -198,19 +184,15 @@
 
         // --- 初始化設定 ---
         const savedApiKey = localStorage.getItem('openai_api_key');
-        if (savedApiKey) {
-            apiKeyInput.value = savedApiKey;
-        }
-
-        apiKeyInput.addEventListener('change', (e) => {
-            localStorage.setItem('openai_api_key', e.target.value);
-        });
+        if (savedApiKey) { apiKeyInput.value = savedApiKey; }
+        apiKeyInput.addEventListener('change', (e) => localStorage.setItem('openai_api_key', e.target.value));
 
         // --- 工具函數 ---
         function showError(msg) {
             if (msg) {
                 errorMessage.textContent = msg;
                 errorContainer.classList.remove('hidden');
+                console.error("Application Error:", msg);
             } else {
                 errorContainer.classList.add('hidden');
             }
@@ -255,40 +237,29 @@
         function updateBillingUI() {
             sessionTimeDisplay.textContent = formatTime(sessionSeconds);
             sessionCostDisplay.textContent = `$${sessionCost.toFixed(4)}`;
-            
             const remainingBudget = Math.max(0, budget - sessionCost);
             remainingBudgetDisplay.textContent = `$${remainingBudget.toFixed(4)}`;
-            
             const isLowBudget = remainingBudget < 0.5;
             const progressPercentage = Math.min(100, Math.max(0, (remainingBudget / budget) * 100));
-            
             remainingBudgetDisplay.className = `text-sm font-mono font-bold ${isLowBudget ? 'text-red-500' : 'text-green-500'}`;
             budgetProgressBar.style.width = `${progressPercentage}%`;
             budgetProgressBar.className = `h-1.5 rounded-full transition-all duration-1000 ${isLowBudget ? 'bg-red-500' : 'bg-green-500'}`;
         }
 
         function updateTranscriptUI() {
-            // 清理歷史紀錄
             const historyElements = transcriptContainer.querySelectorAll('.history-item');
             historyElements.forEach(el => el.remove());
 
-            // 重新渲染歷史紀錄
             transcripts.forEach((item) => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'history-item flex flex-col gap-1 max-w-[85%]';
                 itemDiv.innerHTML = `
-                    <div class="text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700">
-                        ${item.original}
-                    </div>
-                    <div class="text-base text-white bg-indigo-600/20 w-fit px-4 py-2 rounded-xl rounded-tl-none border border-indigo-500/30 font-medium">
-                        ${item.translation}
-                    </div>
+                    <div class="text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700">${item.original}</div>
+                    <div class="text-base text-white bg-indigo-600/20 w-fit px-4 py-2 rounded-xl rounded-tl-none border border-indigo-500/30 font-medium">${item.translation}</div>
                 `;
-                // 將歷史紀錄插入到 currentSpeechContainer 之前
                 transcriptContainer.insertBefore(itemDiv, currentSpeechContainer);
             });
 
-            // 更新即時區塊
             if (currentTranscriptText || currentTranslationText || isRecording) {
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
@@ -318,41 +289,30 @@
                 currentSpeechContainer.classList.add('hidden');
                 currentSpeechContainer.classList.remove('flex');
             }
-
             scrollToBottom();
         }
 
         // --- 核心邏輯 ---
         function stopSession() {
-            // 停止音訊處理
-            if (processor && audioContext) {
-                processor.disconnect();
-            }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
-            }
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
+            isRecording = false;
+
+            if (processor && audioContext) processor.disconnect();
+            if (audioContext) { audioContext.close(); audioContext = null; }
+            if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
             
-            // 關閉 WebSocket
             if (ws) {
+                // 移除事件監聽器，防止連鎖錯誤
+                ws.onmessage = null; 
+                ws.onerror = null;
                 if(ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({type: "input_audio_buffer.commit"}));
+                    try { ws.send(JSON.stringify({type: "input_audio_buffer.commit"})); } catch(e) {}
                 }
                 ws.close();
                 ws = null;
             }
 
-            // 停止計時
-            if (timerId) {
-                clearInterval(timerId);
-                timerId = null;
-            }
+            if (timerId) { clearInterval(timerId); timerId = null; }
 
-            // 處理尚未塞入歷史紀錄的半殘文字
             if(currentTranscriptText || currentTranslationText) {
                 transcripts.push({
                     role: 'user', 
@@ -363,12 +323,10 @@
             
             currentTranscriptText = '';
             currentTranslationText = '';
-            isRecording = false;
             
-            // 更新 UI
             toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20";
             btnIcon.setAttribute('data-lucide', 'mic');
-            btnText.textContent = '開始說話';
+            btnText.textContent = '開始連線';
             lucide.createIcons();
             
             apiKeyInput.disabled = false;
@@ -382,6 +340,9 @@
 
         async function startRecording() {
             try {
+                // 防呆：確保此時 WebSocket 沒有出錯且處於開啟狀態
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
                 
@@ -389,16 +350,15 @@
                 processor = audioContext.createScriptProcessor(4096, 1, 1);
                 
                 processor.onaudioprocess = (e) => {
-                    if (ws && ws.readyState === WebSocket.OPEN) {
+                    if (ws && ws.readyState === WebSocket.OPEN && isRecording) {
                         const inputData = e.inputBuffer.getChannelData(0);
                         const pcmData = floatTo16BitPCM(inputData);
                         const base64Audio = arrayBufferToBase64(pcmData);
                         
-                        const audioEvent = {
+                        ws.send(JSON.stringify({
                             type: "input_audio_buffer.append",
                             audio: base64Audio
-                        };
-                        ws.send(JSON.stringify(audioEvent));
+                        }));
                     }
                 };
 
@@ -406,9 +366,7 @@
                 processor.connect(audioContext.destination);
 
                 isRecording = true;
-                showError('');
                 
-                // 更新 UI
                 toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-red-500/20 text-red-500 border border-red-500 hover:bg-red-500/30";
                 btnIcon.setAttribute('data-lucide', 'square');
                 btnText.textContent = '停止翻譯';
@@ -421,7 +379,6 @@
                 
                 setStatus('錄音中...');
 
-                // 開始計費計時
                 timerId = setInterval(() => {
                     sessionSeconds++;
                     sessionCost += RATE_PER_SECOND;
@@ -431,7 +388,7 @@
                 updateTranscriptUI();
 
             } catch (err) {
-                console.error("無法存取麥克風", err);
+                console.error("麥克風存取錯誤:", err);
                 showError("無法存取麥克風，請確保已給予權限。");
                 stopSession();
             }
@@ -439,15 +396,15 @@
 
         async function connectWebSocket() {
             const apiKey = apiKeyInput.value.trim();
-            if (!apiKey) {
-                showError('請輸入 OpenAI API Key');
-                return;
-            }
+            if (!apiKey) { showError('請輸入 OpenAI API Key'); return; }
+
+            // 每次連線前先清空錯誤
+            showError('');
 
             try {
                 setStatus('連線至 OpenAI Realtime API...');
-                
-                const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
+                // 更新：使用最新通用模型標籤，避免特定日期版本的權限問題
+                const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview";
                 
                 ws = new WebSocket(url, [
                     "realtime",
@@ -456,7 +413,7 @@
                 ]);
 
                 ws.onopen = () => {
-                    setStatus('連線成功！設定模型參數...');
+                    setStatus('連線成功！驗證參數中...');
                     
                     const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
                     const sessionUpdate = {
@@ -465,9 +422,7 @@
                             modalities: ["text"],
                             instructions: `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation, no other conversational filler.`,
                             input_audio_format: "pcm16",
-                            input_audio_transcription: {
-                                model: "whisper-1"
-                            },
+                            input_audio_transcription: { model: "whisper-1" },
                             turn_detection: {
                                 type: "server_vad",
                                 threshold: 0.5,
@@ -477,14 +432,18 @@
                         }
                     };
                     ws.send(JSON.stringify(sessionUpdate));
-                    setStatus('等待語音輸入中...');
-                    startRecording();
                 };
 
                 ws.onmessage = (event) => {
                     const message = JSON.parse(event.data);
 
                     switch (message.type) {
+                        // 確保 OpenAI 接受設定後，才啟動麥克風 (修復 Race Condition)
+                        case 'session.updated':
+                            setStatus('設定完成，啟動麥克風...');
+                            startRecording();
+                            break;
+                            
                         case 'conversation.item.input_audio_transcription.completed':
                             currentTranscriptText = message.transcript;
                             updateTranscriptUI();
@@ -509,37 +468,38 @@
                             break;
                             
                         case 'error':
-                            console.error("OpenAI WebSocket Error:", message.error);
-                            showError(`API 錯誤: ${message.error.message}`);
+                            // 解析並顯示完整的真實錯誤物件
+                            const errorDetail = message.error ? (message.error.message || JSON.stringify(message.error)) : JSON.stringify(message);
+                            console.error("OpenAI Error:", errorDetail);
+                            showError(`OpenAI 回傳錯誤: ${errorDetail}`);
                             stopSession();
                             break;
                     }
                 };
 
                 ws.onerror = (e) => {
-                    console.error('WebSocket 錯誤', e);
-                    showError('WebSocket 連線失敗，請檢查 API Key 或網路狀態。');
+                    showError('WebSocket 網路連線失敗，請檢查網路狀態。');
                     stopSession();
                 };
 
                 ws.onclose = () => {
-                    setStatus('連線已中斷');
+                    // 只有在錄音狀態下非預期中斷才顯示提示
+                    if(isRecording) { setStatus('連線已中斷'); }
                     stopSession();
                 };
 
             } catch (err) {
-                console.error(err);
-                showError(`連線錯誤: ${err.message}`);
+                showError(`連線設定錯誤: ${err.message}`);
+                stopSession();
             }
         }
 
         // --- 事件監聽 ---
         toggleRecordingBtn.addEventListener('click', () => {
-            if (isRecording) {
+            if (isRecording || ws) {
                 stopSession();
             } else {
-                const remainingBudget = budget - sessionCost;
-                if (remainingBudget <= 0) {
+                if (budget - sessionCost <= 0) {
                     showError('模擬餘額不足，請重整頁面。');
                     return;
                 }
@@ -547,7 +507,6 @@
             }
         });
         
-        // 初始 UI 更新
         updateBillingUI();
     </script>
 </body>
