@@ -24,17 +24,29 @@
         
         <!-- 頂部設定區 -->
         <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700 overflow-hidden">
-            <div class="p-5 border-b border-gray-700">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
-                        <i data-lucide="cpu" class="w-6 h-6"></i>
-                        OpenAI 即時語音模型展示 (Realtime API)
-                    </h1>
-                    <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
-                        <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
-                        <span id="statusMessage">系統就緒</span>
-                    </div>
+            <!-- Header -->
+            <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
+                    <i data-lucide="cpu" class="w-6 h-6"></i>
+                    OpenAI 即時語音模型展示 (Realtime API)
+                </h1>
+                <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
+                    <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span id="statusMessage">系統就緒</span>
                 </div>
+            </div>
+
+            <!-- 全域設定：API Key (獨立於分頁之外) -->
+            <div class="px-5 py-4 bg-gray-800 border-b border-gray-700 flex flex-col md:flex-row items-center gap-4">
+                <label class="whitespace-nowrap text-sm font-medium text-gray-400 flex items-center gap-1">
+                    <i data-lucide="key" class="w-4 h-4"></i> 全域設定：API Key
+                </label>
+                <input 
+                    type="password" 
+                    id="apiKeyInput"
+                    placeholder="sk-proj-..."
+                    class="w-full md:max-w-md bg-gray-900 border border-gray-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                />
             </div>
 
             <!-- 三大功能分頁 Tabs -->
@@ -50,6 +62,7 @@
                 </button>
             </div>
 
+            <!-- 分頁內容與操作區 -->
             <div class="p-5">
                 <!-- 功能解說區 -->
                 <div id="explanationContainer" class="mb-6 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl text-indigo-200 text-sm leading-relaxed">
@@ -62,18 +75,7 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                    <div class="md:col-span-5">
-                        <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-1">
-                            <i data-lucide="key" class="w-4 h-4"></i> OpenAI API Key
-                        </label>
-                        <input 
-                            type="password" 
-                            id="apiKeyInput"
-                            placeholder="sk-proj-..."
-                            class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
-                        />
-                    </div>
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-8">
                         <label class="block text-sm font-medium text-gray-400 mb-1">功能參數設定</label>
                         <!-- 翻譯語言選擇 (僅在翻譯模式顯示) -->
                         <select id="targetLanguageSelect" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
@@ -89,10 +91,10 @@
                         </select>
                         <!-- 聽寫提示 (僅在聽寫模式顯示) -->
                         <div id="whisperNotice" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-400">
-                            純轉錄模式 (無 AI 回應)
+                            此模式無參數需設定，系統將進行純轉錄 (無 AI 回應)。
                         </div>
                     </div>
-                    <div class="md:col-span-3">
+                    <div class="md:col-span-4">
                         <button
                             id="toggleRecordingBtn"
                             class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
@@ -141,9 +143,15 @@
             <div class="lg:col-span-3 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 flex flex-col h-[550px]">
                 <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center rounded-t-2xl">
                     <h2 id="chatBoxTitle" class="font-semibold text-gray-200">語音對話紀錄</h2>
-                    <div id="recordingIndicator" class="hidden flex items-center gap-2">
-                        <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
-                        <span class="text-xs text-indigo-400">伺服器自動偵測語音中...</span>
+                    <div class="flex items-center gap-4">
+                        <div id="recordingIndicator" class="hidden flex items-center gap-2">
+                            <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
+                            <span class="text-xs text-indigo-400 hidden sm:inline">伺服器自動偵測語音中...</span>
+                        </div>
+                        <!-- 新增：清除畫面按鈕 -->
+                        <button id="clearTranscriptBtn" class="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors border border-transparent hover:border-red-400/30">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 清除畫面
+                        </button>
                     </div>
                 </div>
                 
@@ -210,6 +218,7 @@
         const errorMessage = document.getElementById('errorMessage');
         const explanationContainer = document.getElementById('explanationContainer');
         const chatBoxTitle = document.getElementById('chatBoxTitle');
+        const clearTranscriptBtn = document.getElementById('clearTranscriptBtn');
         
         const sessionTimeDisplay = document.getElementById('sessionTimeDisplay');
         const sessionCostDisplay = document.getElementById('sessionCostDisplay');
@@ -224,14 +233,14 @@
 
         // --- 初始化解說文字 ---
         const explanations = {
-            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 助理模式)：</strong><br>
+            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音助理模式)：</strong><br>
                         此模式賦予 AI 強大的推理與角色扮演能力。您可以選擇一個「角色」，按下連線後直接與它對話。AI 會像真人一樣思考並即時用語音/文字回應您。<br>
                         <em>測試建議：選擇「招生顧問」，然後問它：「請問文藻五專部有什麼特色？」</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 即時翻譯模式)：</strong><br>
-                        此模式專為跨語言溝通打造。設定目標語言後，您只要用中文說話，AI 會立刻開始「串流翻譯」，將結果逐字顯示出來。您會發現翻譯文字往往比原文轉錄還要早出現，這是因為 AI 的預測能力極強。<br>
-                        <em>測試建議：選擇「日文」，隨意說一段日常問候語。</em>`,
+                        設定目標語言後，只要用中文說話，AI 會立刻開始「串流翻譯」。<br>
+                        <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，因此它主打的是「超低延遲的停頓後翻譯」，而不是「邊講邊翻的同聲傳譯」。`,
             whisper:   `<strong>💡 玩法解說 (GPT-Realtime-Whisper 即時聽寫模式)：</strong><br>
-                        此模式關閉了 AI 的回應功能，專注於「零延遲的語音轉文字」。非常適合用在課堂逐字稿、會議紀錄。系統會在您講話停頓時，自動生成精準的逐字稿。<br>
+                        此模式關閉了 AI 的回應功能，專注於「零延遲的語音轉文字」。系統會在您講話稍微停頓時，自動生成精準的逐字稿。<br>
                         <em>測試建議：直接念一段新聞稿或課文，觀察它對專有名詞的辨識度。</em>`
         };
 
@@ -280,6 +289,14 @@
             // 更新解說文字
             explanationContainer.innerHTML = explanations[mode];
         };
+
+        // --- 清除畫面邏輯 ---
+        clearTranscriptBtn.addEventListener('click', () => {
+            transcripts = [];
+            currentTranscriptText = '';
+            currentTranslationText = '';
+            updateTranscriptUI();
+        });
 
         // --- 工具函數 ---
         function showError(msg) {
@@ -375,11 +392,10 @@
             });
 
             // 處理即時區塊
-            if (isRecording) {
+            if (isRecording || currentTranscriptText || currentTranslationText) {
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
                 
-                // 確保原文區塊永遠可見，修復「翻譯先出來」的視覺錯位
                 const transcriptSpan = currentTranscriptEl.querySelector('.transcript-text');
                 if (currentTranscriptText) {
                     transcriptSpan.textContent = currentTranscriptText;
@@ -396,7 +412,6 @@
                 } else {
                     currentTranslationEl.classList.add('hidden');
                 }
-
             } else {
                 currentSpeechContainer.classList.add('hidden');
                 currentSpeechContainer.classList.remove('flex');
@@ -550,8 +565,8 @@
                             turn_detection: {
                                 type: "server_vad",
                                 threshold: 0.5,
-                                prefix_padding_ms: 300,
-                                silence_duration_ms: 500
+                                prefix_padding_ms: 300, // 稍微縮短緩衝時間，讓反應更敏銳
+                                silence_duration_ms: 500 // 停頓 0.5 秒即觸發送出
                             }
                         }
                     };
