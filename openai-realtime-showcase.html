@@ -49,11 +49,8 @@
                 />
             </div>
 
-            <!-- 四大功能分頁 Tabs -->
+            <!-- 三大功能分頁 Tabs -->
             <div class="flex flex-col md:flex-row bg-gray-800/50 border-b border-gray-700">
-                <button onclick="switchTab('all')" id="tab-all" class="flex-1 py-3 px-2 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive">
-                    <i data-lucide="layers" class="w-4 h-4"></i> 綜合展示 (全開)
-                </button>
                 <button onclick="switchTab('assistant')" id="tab-assistant" class="flex-1 py-3 px-2 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active">
                     <i data-lucide="bot" class="w-4 h-4"></i> 語音助理 (含工具)
                 </button>
@@ -203,7 +200,7 @@
         let transcripts = [];
         let currentTranscriptText = '';
         let currentTranslationText = '';
-        let activeMode = 'assistant'; // 'all', 'assistant', 'translate', 'whisper'
+        let activeMode = 'assistant'; // 'assistant', 'translate', 'whisper'
 
         // WebRTC & WebSocket 相關變數
         let ws = null;
@@ -250,9 +247,6 @@
 
         // --- 初始化解說文字 ---
         const explanations = {
-            all: `<strong>💡 玩法解說 (綜合展示模式)：</strong><br>
-                  火力全開！結合語音助理、即時翻譯與文字紀錄！AI 會先在文字中附上您剛剛說話的「外語翻譯」，然後再用語音回答您的問題。<br>
-                  <em>🔥 測試建議：選擇翻成「日文」，用中文問問題。系統會翻譯您的話，並同時扮演助理回答。</em>`,
             assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音對話助理模式 + 工具調用)：</strong><br>
                         AI 具備「原生聽說能力」與上網能力。如果要求它講外文，會自動在文字附上中文翻譯。<br>
                         <em>🔥 神奇測試建議：請用語音問它：<span class="text-yellow-400">「文藻外語大學現任校長是誰？」</span> 或 <span class="text-yellow-400">「今天高雄天氣如何？」</span>，觀察它觸發工具上網搜尋！</em>`,
@@ -277,7 +271,7 @@
             }
             activeMode = mode;
             
-            ['all', 'assistant', 'translate', 'whisper'].forEach(m => {
+            ['assistant', 'translate', 'whisper'].forEach(m => {
                 const btn = document.getElementById(`tab-${m}`);
                 btn.className = m === mode 
                     ? "flex-1 py-3 px-2 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active"
@@ -288,13 +282,7 @@
             assistantSettings.classList.add('hidden');
             whisperNotice.classList.add('hidden');
 
-            if (mode === 'all') {
-                targetLanguageSelect.classList.remove('hidden');
-                assistantSettings.classList.remove('hidden');
-                assistantSettings.classList.add('flex');
-                chatBoxTitle.textContent = "綜合展示 (交談、翻譯與聽寫)";
-                document.getElementById('aiLabel').textContent = "翻譯與回應：";
-            } else if (mode === 'translate') {
+            if (mode === 'translate') {
                 targetLanguageSelect.classList.remove('hidden');
                 chatBoxTitle.textContent = "即時雙語對話";
                 document.getElementById('aiLabel').textContent = "即時翻譯：";
@@ -397,14 +385,14 @@
             nextPlayTime = 0;
         }
 
-        // --- 閒置斷線邏輯 (雙方皆安靜才啟動) ---
+        // --- 閒置斷線邏輯 ---
         function resetIdleTimer() {
             if (idleTimeoutId) clearTimeout(idleTimeoutId);
             if (isRecording) {
                 idleTimeoutId = setTimeout(() => {
-                    showError('AI 與使用者皆已閒置超過 10 秒沒有講話，自動斷線以避免持續計費。');
+                    showError('已閒置超過 30 秒沒有講話，自動斷線以避免持續計費。');
                     stopSession();
-                }, 10000);
+                }, 30000);
             }
         }
 
@@ -519,7 +507,6 @@
                 if (item.translation && activeMode !== 'whisper') {
                     let label = 'AI 回應：';
                     if (activeMode === 'translate') label = '即時翻譯：';
-                    if (activeMode === 'all') label = '翻譯與回應：';
 
                     html += `
                     <div class="flex flex-col gap-1 items-start mt-1">
@@ -678,7 +665,7 @@
             showError('');
             
             // 根據模型設定費率預估
-            if (activeMode === 'assistant' || activeMode === 'all') {
+            if (activeMode === 'assistant') {
                 RATE_PER_MINUTE = 0.095; // 語音助理雙向處理，預估費率較高
             } else if (activeMode === 'translate') {
                 RATE_PER_MINUTE = 0.034; // 即時翻譯
@@ -705,7 +692,7 @@
                     setStatus('連線成功！正在寫入系統提示詞與註冊工具...');
                     
                     let langName = "Traditional Chinese (繁體中文, zh-TW)";
-                    if (activeMode === 'assistant' || activeMode === 'all') {
+                    if (activeMode === 'assistant') {
                         const langVal = assistantLangSelect.value;
                         if (langVal === 'en') langName = "English";
                         else if (langVal === 'ja') langName = "Japanese (日本語)";
@@ -725,7 +712,7 @@
                         }
                     };
 
-                    if (activeMode === 'assistant' || activeMode === 'all') {
+                    if (activeMode === 'assistant') {
                         const role = assistantRoleSelect.value;
                         sessionConfig.modalities = ["text", "audio"];
                         sessionConfig.voice = voiceSelect.value;
@@ -736,12 +723,6 @@
                             extraInstruction += `\nCRITICAL INSTRUCTION: You must speak in ${langName}. However, your TEXT output MUST be formatted as "[${langName} response] (中文翻譯：[Traditional Chinese translation])". Your AUDIO output should ONLY be in ${langName}.`;
                         }
                         
-                        // 綜合展示模式特有：先翻譯使用者的話
-                        if (activeMode === 'all') {
-                            const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
-                            extraInstruction += `\nWhen the user speaks, you must FIRST output a text translation of their query into ${targetLangName} formatted as '[使用者語音翻譯：...]'. Then, provide your audio and text response to their query.`;
-                        }
-
                         sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks about admission requirements or department information, use the 'get_admission_info' tool. If the user asks for the latest news, weather, or real-time web search, use the 'search_web_information' tool.` + extraInstruction + dynamicLangConstraint;
                         
                         // ✨ 註冊多個工具
@@ -818,7 +799,7 @@
                             break;
 
                         case 'response.audio_transcript.delta':
-                            if (activeMode === 'assistant' || activeMode === 'all') {
+                            if (activeMode === 'assistant') {
                                 currentTranslationText += message.delta;
                                 updateTranscriptUI();
                             }
@@ -826,7 +807,7 @@
                             break;
 
                         case 'response.audio.delta':
-                            if (activeMode === 'assistant' || activeMode === 'all') {
+                            if (activeMode === 'assistant') {
                                 playAudioDelta(message.delta);
                             }
                             clearIdleTimer(); // AI 正在講話，清除閒置計時
@@ -834,7 +815,7 @@
 
                         // ✨ 攔截工具呼叫事件
                         case 'response.function_call_arguments.done':
-                            if (activeMode === 'assistant' || activeMode === 'all') {
+                            if (activeMode === 'assistant') {
                                 handleToolCall(message.call_id, message.name, message.arguments);
                             }
                             break;
