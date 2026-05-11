@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>即時語音翻譯助理 (Realtime API)</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* 自訂捲軸樣式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-900 text-gray-100 font-sans p-4 md:p-6">
+
+    <div class="max-w-5xl mx-auto space-y-6">
+        
+        <!-- 頂部設定區 -->
+        <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
+                    <i data-lucide="globe" class="w-6 h-6"></i>
+                    即時語音翻譯助理 (Realtime API)
+                </h1>
+                <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
+                    <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
+                    <span id="statusMessage">系統就緒</span>
+                </div>
+            </div>
+
+            <div id="errorContainer" class="hidden mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-center gap-2 text-red-400 text-sm">
+                <i data-lucide="alert-circle" class="w-4 h-4 shrink-0"></i>
+                <span id="errorMessage"></span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <div class="md:col-span-5">
+                    <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-1">
+                        <i data-lucide="settings" class="w-4 h-4"></i> OpenAI API Key
+                    </label>
+                    <input 
+                        type="password" 
+                        id="apiKeyInput"
+                        placeholder="sk-proj-..."
+                        class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                    />
+                </div>
+                <div class="md:col-span-4">
+                    <label class="block text-sm font-medium text-gray-400 mb-1">目標翻譯語言</label>
+                    <select
+                        id="targetLanguageSelect"
+                        class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none"
+                    >
+                        <option value="en">英文 (English)</option>
+                        <option value="ja">日文 (日本語)</option>
+                        <option value="vi">越南文 (Tiếng Việt)</option>
+                        <option value="ko">韓文 (한국어)</option>
+                        <option value="es">西班牙文 (Español)</option>
+                    </select>
+                </div>
+                <div class="md:col-span-3">
+                    <button
+                        id="toggleRecordingBtn"
+                        class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
+                    >
+                        <i data-lucide="mic" id="btnIcon" class="w-4 h-4"></i> 
+                        <span id="btnText">開始說話</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心佈局：計費與對話區 -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            
+            <!-- 左側：計費面板 -->
+            <div class="lg:col-span-1 space-y-4">
+                <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700 flex flex-col items-center justify-center relative overflow-hidden">
+                    <i data-lucide="clock" class="w-6 h-6 text-gray-500 mb-2"></i>
+                    <div id="sessionTimeDisplay" class="text-3xl font-mono font-bold text-white mb-1">00:00</div>
+                    <div class="text-xs text-gray-400">本次連線時間</div>
+                </div>
+
+                <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700 relative overflow-hidden">
+                    <div class="flex justify-between items-start mb-3">
+                        <i data-lucide="dollar-sign" class="w-6 h-6 text-green-400"></i>
+                        <div class="text-right">
+                            <div id="sessionCostDisplay" class="text-2xl font-mono font-bold text-red-400">$0.0000</div>
+                            <div class="text-xs text-gray-400 mt-1">本次預估費用</div>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-3 border-t border-gray-700">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-xs text-gray-400">剩餘預估餘額</span>
+                            <span id="remainingBudgetDisplay" class="text-sm font-mono font-bold text-green-500">$5.0000</span>
+                        </div>
+                        <div class="w-full bg-gray-900 rounded-full h-1.5 mt-2">
+                            <div id="budgetProgressBar" class="h-1.5 rounded-full bg-green-500 transition-all duration-1000" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右側：對話與翻譯區 -->
+            <div class="lg:col-span-3 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 flex flex-col h-[500px]">
+                <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center rounded-t-2xl">
+                    <h2 class="font-semibold text-gray-200">即時雙語對話</h2>
+                    <div id="recordingIndicator" class="hidden flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
+                        <span class="text-xs text-indigo-400">伺服器自動偵測語音中...</span>
+                    </div>
+                </div>
+                
+                <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 scroll-smooth">
+                    <!-- 歷史紀錄將插入於此 -->
+                    
+                    <!-- 正在講話的即時區塊 -->
+                    <div id="currentSpeechContainer" class="hidden flex-col gap-1 max-w-[85%] opacity-80">
+                        <div id="currentTranscript" class="hidden text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700 border-dashed">
+                            <span></span> <span class="animate-pulse">...</span>
+                        </div>
+                        <div id="currentTranslation" class="hidden text-base text-indigo-200 bg-indigo-600/10 w-fit px-4 py-2 rounded-xl rounded-tl-none border border-indigo-500/30 border-dashed">
+                            <span></span> <span class="animate-pulse">_</span>
+                        </div>
+                        <div id="waitingIndicator" class="hidden flex items-center gap-1 py-2 text-gray-500">
+                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // 初始化 Lucide Icons
+        lucide.createIcons();
+
+        // --- 狀態與常數 ---
+        const RATE_PER_MINUTE = 0.034;
+        const RATE_PER_SECOND = RATE_PER_MINUTE / 60;
+        let isRecording = false;
+        let sessionSeconds = 0;
+        let sessionCost = 0;
+        let budget = 5.00;
+        let transcripts = [];
+        let currentTranscriptText = '';
+        let currentTranslationText = '';
+
+        // WebRTC & WebSocket 相關變數
+        let ws = null;
+        let audioContext = null;
+        let mediaStream = null;
+        let processor = null;
+        let timerId = null;
+
+        // --- DOM 元素 ---
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const targetLanguageSelect = document.getElementById('targetLanguageSelect');
+        const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
+        const btnIcon = document.getElementById('btnIcon');
+        const btnText = document.getElementById('btnText');
+        
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusMessage = document.getElementById('statusMessage');
+        const errorContainer = document.getElementById('errorContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        const sessionTimeDisplay = document.getElementById('sessionTimeDisplay');
+        const sessionCostDisplay = document.getElementById('sessionCostDisplay');
+        const remainingBudgetDisplay = document.getElementById('remainingBudgetDisplay');
+        const budgetProgressBar = document.getElementById('budgetProgressBar');
+        
+        const recordingIndicator = document.getElementById('recordingIndicator');
+        const transcriptContainer = document.getElementById('transcriptContainer');
+        const currentSpeechContainer = document.getElementById('currentSpeechContainer');
+        const currentTranscriptEl = document.getElementById('currentTranscript');
+        const currentTranslationEl = document.getElementById('currentTranslation');
+        const waitingIndicator = document.getElementById('waitingIndicator');
+
+        // --- 初始化設定 ---
+        const savedApiKey = localStorage.getItem('openai_api_key');
+        if (savedApiKey) {
+            apiKeyInput.value = savedApiKey;
+        }
+
+        apiKeyInput.addEventListener('change', (e) => {
+            localStorage.setItem('openai_api_key', e.target.value);
+        });
+
+        // --- 工具函數 ---
+        function showError(msg) {
+            if (msg) {
+                errorMessage.textContent = msg;
+                errorContainer.classList.remove('hidden');
+            } else {
+                errorContainer.classList.add('hidden');
+            }
+        }
+
+        function setStatus(msg, isError = false) {
+            statusMessage.textContent = msg;
+            statusIndicator.className = `w-2 h-2 rounded-full ${isError ? 'bg-red-500' : (isRecording ? 'bg-red-500 animate-pulse' : 'bg-green-500')}`;
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function floatTo16BitPCM(float32Array) {
+            const buffer = new ArrayBuffer(float32Array.length * 2);
+            const view = new DataView(buffer);
+            let offset = 0;
+            for (let i = 0; i < float32Array.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, float32Array[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+            return buffer;
+        }
+
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function scrollToBottom() {
+            transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
+        }
+
+        // --- UI 更新邏輯 ---
+        function updateBillingUI() {
+            sessionTimeDisplay.textContent = formatTime(sessionSeconds);
+            sessionCostDisplay.textContent = `$${sessionCost.toFixed(4)}`;
+            
+            const remainingBudget = Math.max(0, budget - sessionCost);
+            remainingBudgetDisplay.textContent = `$${remainingBudget.toFixed(4)}`;
+            
+            const isLowBudget = remainingBudget < 0.5;
+            const progressPercentage = Math.min(100, Math.max(0, (remainingBudget / budget) * 100));
+            
+            remainingBudgetDisplay.className = `text-sm font-mono font-bold ${isLowBudget ? 'text-red-500' : 'text-green-500'}`;
+            budgetProgressBar.style.width = `${progressPercentage}%`;
+            budgetProgressBar.className = `h-1.5 rounded-full transition-all duration-1000 ${isLowBudget ? 'bg-red-500' : 'bg-green-500'}`;
+        }
+
+        function updateTranscriptUI() {
+            // 清理歷史紀錄
+            const historyElements = transcriptContainer.querySelectorAll('.history-item');
+            historyElements.forEach(el => el.remove());
+
+            // 重新渲染歷史紀錄
+            transcripts.forEach((item) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'history-item flex flex-col gap-1 max-w-[85%]';
+                itemDiv.innerHTML = `
+                    <div class="text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700">
+                        ${item.original}
+                    </div>
+                    <div class="text-base text-white bg-indigo-600/20 w-fit px-4 py-2 rounded-xl rounded-tl-none border border-indigo-500/30 font-medium">
+                        ${item.translation}
+                    </div>
+                `;
+                // 將歷史紀錄插入到 currentSpeechContainer 之前
+                transcriptContainer.insertBefore(itemDiv, currentSpeechContainer);
+            });
+
+            // 更新即時區塊
+            if (currentTranscriptText || currentTranslationText || isRecording) {
+                currentSpeechContainer.classList.remove('hidden');
+                currentSpeechContainer.classList.add('flex');
+                
+                if (currentTranscriptText) {
+                    currentTranscriptEl.classList.remove('hidden');
+                    currentTranscriptEl.querySelector('span').textContent = currentTranscriptText;
+                } else {
+                    currentTranscriptEl.classList.add('hidden');
+                }
+
+                if (currentTranslationText) {
+                    currentTranslationEl.classList.remove('hidden');
+                    currentTranslationEl.querySelector('span').textContent = currentTranslationText;
+                } else {
+                    currentTranslationEl.classList.add('hidden');
+                }
+
+                if (isRecording && !currentTranscriptText && !currentTranslationText) {
+                    waitingIndicator.classList.remove('hidden');
+                    waitingIndicator.classList.add('flex');
+                } else {
+                    waitingIndicator.classList.add('hidden');
+                    waitingIndicator.classList.remove('flex');
+                }
+            } else {
+                currentSpeechContainer.classList.add('hidden');
+                currentSpeechContainer.classList.remove('flex');
+            }
+
+            scrollToBottom();
+        }
+
+        // --- 核心邏輯 ---
+        function stopSession() {
+            // 停止音訊處理
+            if (processor && audioContext) {
+                processor.disconnect();
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            
+            // 關閉 WebSocket
+            if (ws) {
+                if(ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({type: "input_audio_buffer.commit"}));
+                }
+                ws.close();
+                ws = null;
+            }
+
+            // 停止計時
+            if (timerId) {
+                clearInterval(timerId);
+                timerId = null;
+            }
+
+            // 處理尚未塞入歷史紀錄的半殘文字
+            if(currentTranscriptText || currentTranslationText) {
+                transcripts.push({
+                    role: 'user', 
+                    original: currentTranscriptText || '(未轉錄)', 
+                    translation: currentTranslationText || '(未翻譯)'
+                });
+            }
+            
+            currentTranscriptText = '';
+            currentTranslationText = '';
+            isRecording = false;
+            
+            // 更新 UI
+            toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20";
+            btnIcon.setAttribute('data-lucide', 'mic');
+            btnText.textContent = '開始說話';
+            lucide.createIcons();
+            
+            apiKeyInput.disabled = false;
+            targetLanguageSelect.disabled = false;
+            recordingIndicator.classList.add('hidden');
+            recordingIndicator.classList.remove('flex');
+            
+            setStatus('系統就緒');
+            updateTranscriptUI();
+        }
+
+        async function startRecording() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                
+                processor.onaudioprocess = (e) => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        const inputData = e.inputBuffer.getChannelData(0);
+                        const pcmData = floatTo16BitPCM(inputData);
+                        const base64Audio = arrayBufferToBase64(pcmData);
+                        
+                        const audioEvent = {
+                            type: "input_audio_buffer.append",
+                            audio: base64Audio
+                        };
+                        ws.send(JSON.stringify(audioEvent));
+                    }
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+                isRecording = true;
+                showError('');
+                
+                // 更新 UI
+                toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-red-500/20 text-red-500 border border-red-500 hover:bg-red-500/30";
+                btnIcon.setAttribute('data-lucide', 'square');
+                btnText.textContent = '停止翻譯';
+                lucide.createIcons();
+                
+                apiKeyInput.disabled = true;
+                targetLanguageSelect.disabled = true;
+                recordingIndicator.classList.remove('hidden');
+                recordingIndicator.classList.add('flex');
+                
+                setStatus('錄音中...');
+
+                // 開始計費計時
+                timerId = setInterval(() => {
+                    sessionSeconds++;
+                    sessionCost += RATE_PER_SECOND;
+                    updateBillingUI();
+                }, 1000);
+                
+                updateTranscriptUI();
+
+            } catch (err) {
+                console.error("無法存取麥克風", err);
+                showError("無法存取麥克風，請確保已給予權限。");
+                stopSession();
+            }
+        }
+
+        async function connectWebSocket() {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                showError('請輸入 OpenAI API Key');
+                return;
+            }
+
+            try {
+                setStatus('連線至 OpenAI Realtime API...');
+                
+                const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-10-01";
+                
+                ws = new WebSocket(url, [
+                    "realtime",
+                    "openai-insecure-api-key." + apiKey,
+                    "openai-beta.realtime-v1"
+                ]);
+
+                ws.onopen = () => {
+                    setStatus('連線成功！設定模型參數...');
+                    
+                    const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
+                    const sessionUpdate = {
+                        type: "session.update",
+                        session: {
+                            modalities: ["text"],
+                            instructions: `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation, no other conversational filler.`,
+                            input_audio_format: "pcm16",
+                            input_audio_transcription: {
+                                model: "whisper-1"
+                            },
+                            turn_detection: {
+                                type: "server_vad",
+                                threshold: 0.5,
+                                prefix_padding_ms: 300,
+                                silence_duration_ms: 500
+                            }
+                        }
+                    };
+                    ws.send(JSON.stringify(sessionUpdate));
+                    setStatus('等待語音輸入中...');
+                    startRecording();
+                };
+
+                ws.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+
+                    switch (message.type) {
+                        case 'conversation.item.input_audio_transcription.completed':
+                            currentTranscriptText = message.transcript;
+                            updateTranscriptUI();
+                            break;
+                            
+                        case 'response.text.delta':
+                            currentTranslationText += message.delta;
+                            updateTranscriptUI();
+                            break;
+
+                        case 'response.done':
+                            if (currentTranscriptText || currentTranslationText) {
+                                transcripts.push({
+                                    role: 'user', 
+                                    original: currentTranscriptText || '...',
+                                    translation: currentTranslationText
+                                });
+                                currentTranscriptText = '';
+                                currentTranslationText = '';
+                                updateTranscriptUI();
+                            }
+                            break;
+                            
+                        case 'error':
+                            console.error("OpenAI WebSocket Error:", message.error);
+                            showError(`API 錯誤: ${message.error.message}`);
+                            stopSession();
+                            break;
+                    }
+                };
+
+                ws.onerror = (e) => {
+                    console.error('WebSocket 錯誤', e);
+                    showError('WebSocket 連線失敗，請檢查 API Key 或網路狀態。');
+                    stopSession();
+                };
+
+                ws.onclose = () => {
+                    setStatus('連線已中斷');
+                    stopSession();
+                };
+
+            } catch (err) {
+                console.error(err);
+                showError(`連線錯誤: ${err.message}`);
+            }
+        }
+
+        // --- 事件監聽 ---
+        toggleRecordingBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopSession();
+            } else {
+                const remainingBudget = budget - sessionCost;
+                if (remainingBudget <= 0) {
+                    showError('模擬餘額不足，請重整頁面。');
+                    return;
+                }
+                connectWebSocket();
+            }
+        });
+        
+        // 初始 UI 更新
+        updateBillingUI();
+    </script>
+</body>
+</html>
