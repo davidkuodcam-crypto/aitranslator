@@ -52,7 +52,7 @@
             <!-- 三大功能分頁 Tabs -->
             <div class="flex flex-col md:flex-row bg-gray-800/50 border-b border-gray-700">
                 <button onclick="switchTab('assistant')" id="tab-assistant" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active">
-                    <i data-lucide="bot" class="w-4 h-4"></i> GPT-Realtime-2 (語音助理)
+                    <i data-lucide="bot" class="w-4 h-4"></i> GPT-Realtime-2 (語音對話助理)
                 </button>
                 <button onclick="switchTab('translate')" id="tab-translate" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive">
                     <i data-lucide="globe" class="w-4 h-4"></i> GPT-Realtime-Translate (即時翻譯)
@@ -84,14 +84,21 @@
                             <option value="vi">翻成：越南文 (Tiếng Việt)</option>
                         </select>
                         <!-- 助理角色選擇 (僅在助理模式顯示) -->
-                        <select id="assistantRoleSelect" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                            <option value="招生顧問">角色：文藻外語大學招生顧問</option>
-                            <option value="面試官">角色：嚴格的大學面試官</option>
-                            <option value="心靈導師">角色：溫柔的心靈導師</option>
-                        </select>
+                        <div id="assistantSettings" class="flex gap-2">
+                            <select id="assistantRoleSelect" class="w-2/3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                <option value="招生顧問">角色：文藻外語大學招生顧問</option>
+                                <option value="面試官">角色：嚴格的大學面試官</option>
+                                <option value="心靈導師">角色：溫柔的心靈導師</option>
+                            </select>
+                            <select id="voiceSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                <option value="alloy">女聲 (Alloy)</option>
+                                <option value="echo">男聲 (Echo)</option>
+                                <option value="shimmer">柔和女聲 (Shimmer)</option>
+                            </select>
+                        </div>
                         <!-- 聽寫提示 (僅在聽寫模式顯示) -->
-                        <div id="whisperNotice" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-400">
-                            此模式無參數需設定，系統將進行純轉錄 (無 AI 回應)。
+                        <div id="whisperNotice" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-400 flex items-center gap-2">
+                            <i data-lucide="info" class="w-4 h-4"></i> 此模式無參數需設定，系統將進行純轉錄 (無 AI 回應)。
                         </div>
                     </div>
                     <div class="md:col-span-4">
@@ -148,7 +155,7 @@
                             <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
                             <span class="text-xs text-indigo-400 hidden sm:inline">伺服器自動偵測語音中...</span>
                         </div>
-                        <!-- 新增：清除畫面按鈕 -->
+                        <!-- 清除畫面按鈕 -->
                         <button id="clearTranscriptBtn" class="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors border border-transparent hover:border-red-400/30">
                             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 清除畫面
                         </button>
@@ -198,15 +205,22 @@
 
         // WebRTC & WebSocket 相關變數
         let ws = null;
-        let audioContext = null;
+        let audioContext = null; // 用於播放 AI 聲音的 AudioContext
+        let micAudioContext = null; // 用於擷取麥克風的 AudioContext
         let mediaStream = null;
         let processor = null;
         let timerId = null;
+        
+        // 播放聲音的排程時間追蹤
+        let nextPlayTime = 0;
+        let activeAudioNodes = [];
 
         // --- DOM 元素 ---
         const apiKeyInput = document.getElementById('apiKeyInput');
         const targetLanguageSelect = document.getElementById('targetLanguageSelect');
+        const assistantSettings = document.getElementById('assistantSettings');
         const assistantRoleSelect = document.getElementById('assistantRoleSelect');
+        const voiceSelect = document.getElementById('voiceSelect');
         const whisperNotice = document.getElementById('whisperNotice');
         
         const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
@@ -233,15 +247,15 @@
 
         // --- 初始化解說文字 ---
         const explanations = {
-            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音助理模式)：</strong><br>
-                        此模式賦予 AI 強大的推理與角色扮演能力。您可以選擇一個「角色」，按下連線後直接與它對話。AI 會像真人一樣思考並即時用語音/文字回應您。<br>
-                        <em>測試建議：選擇「招生顧問」，然後問它：「請問文藻五專部有什麼特色？」</em>`,
+            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音對話助理模式)：</strong><br>
+                        此模式下，AI 具備<strong>「原生聽說能力」</strong>！您可以選擇角色與聲音，對它講話後，<strong>它會直接開口用語音回答您</strong>。<br>
+                        <em>測試建議：選擇「招生顧問」，然後隨便跟它聊天，聽聽它的語氣與反應速度。</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 即時翻譯模式)：</strong><br>
-                        設定目標語言後，只要用中文說話，AI 會立刻開始「串流翻譯」。<br>
-                        <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，因此它主打的是「超低延遲的停頓後翻譯」，而不是「邊講邊翻的同聲傳譯」。`,
+                        此模式關閉 AI 語音，純做文字翻譯。<br>
+                        <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，主打「超低延遲的停頓後翻譯」。`,
             whisper:   `<strong>💡 玩法解說 (GPT-Realtime-Whisper 即時聽寫模式)：</strong><br>
-                        此模式關閉了 AI 的回應功能，專注於「零延遲的語音轉文字」。系統會在您講話稍微停頓時，自動生成精準的逐字稿。<br>
-                        <em>測試建議：直接念一段新聞稿或課文，觀察它對專有名詞的辨識度。</em>`
+                        關閉 AI 回應與翻譯，專注於「零延遲語音轉文字」。已強制鎖定輸出必須為繁體中文。<br>
+                        <em>測試建議：直接念一段新聞稿，觀察繁體中文字的準確度。</em>`
         };
 
         // --- 初始化設定 ---
@@ -270,7 +284,7 @@
 
             // 參數設定區塊切換
             targetLanguageSelect.classList.add('hidden');
-            assistantRoleSelect.classList.add('hidden');
+            assistantSettings.classList.add('hidden');
             whisperNotice.classList.add('hidden');
 
             if (mode === 'translate') {
@@ -278,11 +292,13 @@
                 chatBoxTitle.textContent = "即時雙語對話";
                 document.getElementById('aiLabel').textContent = "即時翻譯：";
             } else if (mode === 'assistant') {
-                assistantRoleSelect.classList.remove('hidden');
-                chatBoxTitle.textContent = "AI 助理對話紀錄";
+                assistantSettings.classList.remove('hidden');
+                assistantSettings.classList.add('flex');
+                chatBoxTitle.textContent = "AI 語音助理對話紀錄";
                 document.getElementById('aiLabel').textContent = "AI 回應：";
             } else if (mode === 'whisper') {
                 whisperNotice.classList.remove('hidden');
+                whisperNotice.classList.add('flex');
                 chatBoxTitle.textContent = "會議逐字稿 (僅轉錄)";
             }
 
@@ -344,6 +360,53 @@
             transcriptContainer.scrollTop = transcriptContainer.scrollHeight;
         }
 
+        // --- 音訊播放函數 (解碼 OpenAI 回傳的 Base64 PCM16 音訊) ---
+        function playAudioDelta(base64Data) {
+            if (!audioContext) return;
+            const binaryStr = atob(base64Data);
+            const len = binaryStr.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+            }
+            // 轉為 Int16
+            const int16Array = new Int16Array(bytes.buffer);
+            const float32Array = new Float32Array(int16Array.length);
+            for (let i = 0; i < int16Array.length; i++) {
+                float32Array[i] = int16Array[i] / 0x7FFF; // 正規化到 -1.0 ~ 1.0
+            }
+            
+            // OpenAI 回傳的是 24kHz 音訊
+            const buffer = audioContext.createBuffer(1, float32Array.length, 24000);
+            buffer.getChannelData(0).set(float32Array);
+            
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            
+            const currentTime = audioContext.currentTime;
+            // 確保排隊播放，不會疊音
+            if (nextPlayTime < currentTime) {
+                nextPlayTime = currentTime;
+            }
+            source.start(nextPlayTime);
+            nextPlayTime += buffer.duration;
+            
+            // 記錄 source 以便隨時停止
+            activeAudioNodes.push(source);
+            source.onended = () => {
+                activeAudioNodes = activeAudioNodes.filter(n => n !== source);
+            };
+        }
+
+        function stopAllAudio() {
+            activeAudioNodes.forEach(source => {
+                try { source.stop(); } catch(e) {}
+            });
+            activeAudioNodes = [];
+            nextPlayTime = 0;
+        }
+
         // --- UI 更新邏輯 ---
         function updateBillingUI() {
             sessionTimeDisplay.textContent = formatTime(sessionSeconds);
@@ -358,11 +421,9 @@
         }
 
         function updateTranscriptUI() {
-            // 清理舊的 DOM
             const historyElements = transcriptContainer.querySelectorAll('.history-item');
             historyElements.forEach(el => el.remove());
 
-            // 重新渲染歷史紀錄
             transcripts.forEach((item) => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'history-item flex flex-col gap-2 max-w-[90%] mb-6';
@@ -391,7 +452,6 @@
                 transcriptContainer.insertBefore(itemDiv, currentSpeechContainer);
             });
 
-            // 處理即時區塊
             if (isRecording || currentTranscriptText || currentTranslationText) {
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
@@ -399,13 +459,12 @@
                 const transcriptSpan = currentTranscriptEl.querySelector('.transcript-text');
                 if (currentTranscriptText) {
                     transcriptSpan.textContent = currentTranscriptText;
-                    transcriptSpan.className = "transcript-text text-gray-300"; // 正常顏色
+                    transcriptSpan.className = "transcript-text text-gray-300";
                 } else {
                     transcriptSpan.textContent = "(聆聽中...)";
-                    transcriptSpan.className = "transcript-text text-gray-500 italic"; // 佔位顏色
+                    transcriptSpan.className = "transcript-text text-gray-500 italic";
                 }
 
-                // AI 回應區塊
                 if (activeMode !== 'whisper' && currentTranslationText) {
                     currentTranslationEl.classList.remove('hidden');
                     currentTranslationEl.querySelector('.translation-text').textContent = currentTranslationText;
@@ -422,8 +481,10 @@
         // --- 核心邏輯 ---
         function stopSession() {
             isRecording = false;
+            stopAllAudio();
 
-            if (processor && audioContext) processor.disconnect();
+            if (processor && micAudioContext) processor.disconnect();
+            if (micAudioContext) { micAudioContext.close(); micAudioContext = null; }
             if (audioContext) { audioContext.close(); audioContext = null; }
             if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
             
@@ -439,7 +500,6 @@
 
             if (timerId) { clearInterval(timerId); timerId = null; }
 
-            // 保存最後的對話
             if(currentTranscriptText || currentTranslationText) {
                 transcripts.push({
                     role: 'user', 
@@ -459,6 +519,7 @@
             apiKeyInput.disabled = false;
             targetLanguageSelect.disabled = false;
             assistantRoleSelect.disabled = false;
+            voiceSelect.disabled = false;
             recordingIndicator.classList.add('hidden');
             recordingIndicator.classList.remove('flex');
             
@@ -471,10 +532,12 @@
                 if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                micAudioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+                // 初始化播放音訊的 Context，必須在使用者點擊後建立
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
                 
-                const source = audioContext.createMediaStreamSource(mediaStream);
-                processor = audioContext.createScriptProcessor(4096, 1, 1);
+                const source = micAudioContext.createMediaStreamSource(mediaStream);
+                processor = micAudioContext.createScriptProcessor(4096, 1, 1);
                 
                 processor.onaudioprocess = (e) => {
                     if (ws && ws.readyState === WebSocket.OPEN && isRecording) {
@@ -490,7 +553,7 @@
                 };
 
                 source.connect(processor);
-                processor.connect(audioContext.destination);
+                processor.connect(micAudioContext.destination);
 
                 isRecording = true;
                 
@@ -502,6 +565,7 @@
                 apiKeyInput.disabled = true;
                 targetLanguageSelect.disabled = true;
                 assistantRoleSelect.disabled = true;
+                voiceSelect.disabled = true;
                 recordingIndicator.classList.remove('hidden');
                 recordingIndicator.classList.add('flex');
                 
@@ -543,11 +607,16 @@
                     
                     let systemInstructions = "";
                     let modalities = ["text"];
+                    let voice = "alloy";
 
-                    // 根據選定的分頁(Tab)設定不同的大腦指令
+                    // 強制要求使用繁體中文的底層指令，避免變成簡體
+                    const zhTWConstraint = "\n\nCRITICAL INSTRUCTION: You MUST use Traditional Chinese (繁體中文, zh-TW) for all text generation, transcriptions, and responses. Never use Simplified Chinese.";
+
                     if (activeMode === 'assistant') {
                         const role = assistantRoleSelect.value;
-                        systemInstructions = `You are a helpful and intelligent assistant. Your role is: ${role}. Answer the user's queries concisely and naturally in Traditional Chinese (zh-TW).`;
+                        voice = voiceSelect.value;
+                        modalities = ["text", "audio"]; // 關鍵：開啟 audio 回傳！
+                        systemInstructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio.`;
                     } else if (activeMode === 'translate') {
                         const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
                         systemInstructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.`;
@@ -555,18 +624,21 @@
                         systemInstructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.`;
                     }
 
+                    systemInstructions += zhTWConstraint;
+
                     const sessionUpdate = {
                         type: "session.update",
                         session: {
                             modalities: modalities,
                             instructions: systemInstructions,
+                            voice: voice,
                             input_audio_format: "pcm16",
                             input_audio_transcription: { model: "whisper-1" },
                             turn_detection: {
                                 type: "server_vad",
                                 threshold: 0.5,
-                                prefix_padding_ms: 300, // 稍微縮短緩衝時間，讓反應更敏銳
-                                silence_duration_ms: 500 // 停頓 0.5 秒即觸發送出
+                                prefix_padding_ms: 300, 
+                                silence_duration_ms: 500
                             }
                         }
                     };
@@ -585,7 +657,6 @@
                         case 'conversation.item.input_audio_transcription.completed':
                             currentTranscriptText = message.transcript;
                             updateTranscriptUI();
-                            // 如果是 whisper 模式，一旦收到轉錄就視為完成，直接推入歷史紀錄
                             if (activeMode === 'whisper') {
                                 transcripts.push({
                                     role: 'user', 
@@ -597,12 +668,32 @@
                             }
                             break;
                             
+                        // 處理文字串流 (翻譯模式用)
                         case 'response.text.delta':
-                            // whisper 模式下忽略 AI 產生的文字
-                            if (activeMode !== 'whisper') {
+                            if (activeMode === 'translate') {
                                 currentTranslationText += message.delta;
                                 updateTranscriptUI();
                             }
+                            break;
+
+                        // 處理語音轉文字的串流 (助理模式用，因為開啟了 audio modality)
+                        case 'response.audio_transcript.delta':
+                            if (activeMode === 'assistant') {
+                                currentTranslationText += message.delta;
+                                updateTranscriptUI();
+                            }
+                            break;
+
+                        // 接收到 OpenAI 回傳的語音片段！立刻播放！
+                        case 'response.audio.delta':
+                            if (activeMode === 'assistant') {
+                                playAudioDelta(message.delta);
+                            }
+                            break;
+
+                        // 使用者講話打斷了 AI，立刻停止 AI 正在播放的聲音
+                        case 'input_audio_buffer.speech_started':
+                            stopAllAudio();
                             break;
 
                         case 'response.done':
