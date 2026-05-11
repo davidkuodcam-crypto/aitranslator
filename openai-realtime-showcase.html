@@ -147,7 +147,7 @@
             <!-- 右側：對話與翻譯區 -->
             <div class="lg:col-span-3 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 flex flex-col h-[550px]">
                 <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center rounded-t-2xl">
-                    <h2 id="chatBoxTitle" class="font-semibold text-gray-200">語音對話紀錄 (最新訊息在最上方)</h2>
+                    <h2 id="chatBoxTitle" class="font-semibold text-gray-200">語音對話紀錄</h2>
                     <div class="flex items-center gap-4">
                         <div id="recordingIndicator" class="hidden flex items-center gap-2">
                             <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
@@ -162,8 +162,11 @@
                 
                 <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 relative whitespace-pre-wrap flex flex-col">
                     
-                    <!-- 正在講話的即時區塊 (永遠置頂) -->
-                    <div id="currentSpeechContainer" class="hidden flex-col gap-2 max-w-[90%] opacity-90 mb-6">
+                    <!-- 歷史紀錄容器 (正常順序，最新的在最底下) -->
+                    <div id="historyContainer" class="flex flex-col gap-6 w-full mb-6"></div>
+
+                    <!-- 正在講話的即時區塊 (接在歷史紀錄的最底下) -->
+                    <div id="currentSpeechContainer" class="hidden flex-col gap-2 max-w-[90%] opacity-90 pb-4">
                         <!-- 原文 (使用者) -->
                         <div id="currentTranscript" class="flex flex-col gap-1 items-start">
                             <span class="text-xs text-gray-500 ml-1">您說的話 (轉錄中)：</span>
@@ -179,9 +182,6 @@
                             </div>
                         </div>
                     </div>
-
-                    <!-- 歷史紀錄容器 (自動插在即時區塊下方) -->
-                    <div id="historyContainer" class="flex flex-col gap-6 w-full"></div>
                 </div>
             </div>
 
@@ -244,6 +244,7 @@
         const currentSpeechContainer = document.getElementById('currentSpeechContainer');
         const currentTranscriptEl = document.getElementById('currentTranscript');
         const currentTranslationEl = document.getElementById('currentTranslation');
+        const transcriptContainer = document.getElementById('transcriptContainer');
 
         // --- 初始化解說文字 ---
         const explanations = {
@@ -400,6 +401,16 @@
             if (idleTimeoutId) clearTimeout(idleTimeoutId);
         }
 
+        // --- 自動平滑捲動到最下方 ---
+        function scrollToBottom() {
+            setTimeout(() => {
+                transcriptContainer.scrollTo({
+                    top: transcriptContainer.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }, 10);
+        }
+
         // --- 工具調用 (Function Calling) 真實上網與模擬庫 ---
         async function handleToolCall(callId, name, argsString) {
             console.log(`[Tool Called] Name: ${name}, Args: ${argsString}`);
@@ -431,7 +442,6 @@
                 } else if (name === "search_web_information") {
                     const query = args.query || "最新資訊";
                     try {
-                        // 真實串接 Wikipedia API 獲取摘要
                         const wikiRes = await fetch(`https://zh.wikipedia.org/w/api.php?action=query&prop=extracts&exsentences=3&exlimit=1&titles=${encodeURIComponent(query)}&explaintext=1&formatversion=2&origin=*`);
                         const wikiData = await wikiRes.json();
                         if (wikiData.query && wikiData.query.pages) {
@@ -442,7 +452,6 @@
                             }
                         }
                         
-                        // 防呆與文藻客製化資料 (若 Wikipedia 沒查到)
                         if (!result.data || result.data === "") {
                             if (query.includes("文藻") && (query.includes("校長") || query.includes("現任校長"))) {
                                 result.data = "最新網路搜尋結果：文藻外語大學現任校長為莊慧玲教授（自2023年2月起就任）。";
@@ -451,7 +460,6 @@
                             }
                         }
                     } catch (e) {
-                        // 網路錯誤時的防呆備案
                         if (query.includes("文藻") && query.includes("校長")) {
                             result.data = "最新網路搜尋結果：文藻外語大學現任校長為莊慧玲教授（自2023年2月起就任）。";
                         } else {
@@ -480,7 +488,7 @@
             }
         }
 
-        // --- UI 更新邏輯 (歷史訊息永遠在最上方) ---
+        // --- UI 更新邏輯 ---
         function updateBillingUI() {
             sessionTimeDisplay.textContent = formatTime(sessionSeconds);
             sessionCostDisplay.textContent = `$${sessionCost.toFixed(4)}`;
@@ -490,10 +498,10 @@
             // 清空歷史紀錄容器
             historyContainer.innerHTML = '';
 
-            // 歷史紀錄處理：反轉陣列，讓最新完成的對話排在最上面
-            transcripts.slice().reverse().forEach((item) => {
+            // 歷史紀錄處理：正常順序 (舊的在上面，新的在下面)
+            transcripts.forEach((item) => {
                 const itemDiv = document.createElement('div');
-                itemDiv.className = 'history-item flex flex-col gap-2 w-full mb-2 pb-6 border-b border-gray-700/50';
+                itemDiv.className = 'history-item flex flex-col gap-2 w-full pb-4 border-b border-gray-700/50';
                 
                 let html = `
                     <div class="flex flex-col gap-1 items-start">
@@ -521,7 +529,7 @@
                 historyContainer.appendChild(itemDiv);
             });
 
-            // 處理即時區塊 (永遠固定在最上方)
+            // 處理即時區塊 (接在歷史紀錄的最下方)
             if (isRecording || currentTranscriptText || currentTranslationText) {
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
@@ -545,7 +553,9 @@
                 currentSpeechContainer.classList.add('hidden');
                 currentSpeechContainer.classList.remove('flex');
             }
-            // 因為最新的對話自動往上長，所以不需要一直往下拉捲軸！
+            
+            // 每次更新畫面都觸發自動捲動到底部
+            scrollToBottom();
         }
 
         // --- 核心邏輯 ---
@@ -582,8 +592,11 @@
             currentTranscriptText = '';
             currentTranslationText = '';
             
+            // 恢復按鈕為可連線狀態
+            toggleRecordingBtn.disabled = false;
             toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20";
             btnIcon.setAttribute('data-lucide', 'mic');
+            btnIcon.classList.remove('animate-spin');
             btnText.textContent = '開始連線測試';
             lucide.createIcons();
             
@@ -628,8 +641,11 @@
 
                 isRecording = true;
                 
+                // 連線成功，切換為紅色停止按鈕
+                toggleRecordingBtn.disabled = false;
                 toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-red-500/20 text-red-500 border border-red-500 hover:bg-red-500/30";
                 btnIcon.setAttribute('data-lucide', 'square');
+                btnIcon.classList.remove('animate-spin');
                 btnText.textContent = '停止連線';
                 lucide.createIcons();
                 
@@ -663,6 +679,14 @@
             if (!apiKey) { showError('請輸入 OpenAI API Key'); return; }
 
             showError('');
+            
+            // 防呆與即時 UI 反饋：點擊瞬間讓按鈕進入讀取狀態，避免重複點擊
+            toggleRecordingBtn.disabled = true;
+            toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-400 text-white cursor-not-allowed shadow-lg shadow-indigo-600/20";
+            btnIcon.setAttribute('data-lucide', 'loader-2');
+            btnIcon.classList.add('animate-spin');
+            btnText.textContent = '連線準備中...';
+            lucide.createIcons();
             
             // 根據模型設定費率預估
             if (activeMode === 'assistant') {
@@ -718,7 +742,7 @@
                         sessionConfig.voice = voiceSelect.value;
                         
                         let extraInstruction = "";
-                        // 新增：如果非繁體中文回答，強制在畫面上附上中文翻譯
+                        // 如果非繁體中文回答，強制在畫面上附上中文翻譯
                         if (assistantLangSelect.value !== 'zh-TW') {
                             extraInstruction += `\nCRITICAL INSTRUCTION: You must speak in ${langName}. However, your TEXT output MUST be formatted as "[${langName} response] (中文翻譯：[Traditional Chinese translation])". Your AUDIO output should ONLY be in ${langName}.`;
                         }
