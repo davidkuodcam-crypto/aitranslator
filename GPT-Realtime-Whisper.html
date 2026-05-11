@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>即時語音翻譯助理 (Realtime API)</title>
+    <title>OpenAI 語音模型展示戰情室</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 Lucide Icons -->
@@ -13,63 +13,94 @@
         ::-webkit-scrollbar-track { background: #1f2937; border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        .tab-active { border-bottom: 2px solid #818cf8; color: #818cf8; background-color: rgba(79, 70, 229, 0.1); }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+        .tab-inactive:hover { color: #d1d5db; background-color: rgba(31, 41, 55, 0.5); }
     </style>
 </head>
 <body class="min-h-screen bg-gray-900 text-gray-100 font-sans p-4 md:p-6">
 
-    <div class="max-w-5xl mx-auto space-y-6">
+    <div class="max-w-6xl mx-auto space-y-6">
         
         <!-- 頂部設定區 -->
-        <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
-                    <i data-lucide="globe" class="w-6 h-6"></i>
-                    即時語音翻譯助理 (Realtime API)
-                </h1>
-                <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
-                    <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
-                    <span id="statusMessage">系統就緒</span>
+        <div class="bg-gray-800 rounded-2xl shadow-lg border border-gray-700 overflow-hidden">
+            <div class="p-5 border-b border-gray-700">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
+                        <i data-lucide="cpu" class="w-6 h-6"></i>
+                        OpenAI 即時語音模型展示 (Realtime API)
+                    </h1>
+                    <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
+                        <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
+                        <span id="statusMessage">系統就緒</span>
+                    </div>
                 </div>
             </div>
 
-            <div id="errorContainer" class="hidden mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-start gap-2 text-red-400 text-sm">
-                <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5"></i>
-                <span id="errorMessage" class="break-all"></span>
+            <!-- 三大功能分頁 Tabs -->
+            <div class="flex flex-col md:flex-row bg-gray-800/50 border-b border-gray-700">
+                <button onclick="switchTab('assistant')" id="tab-assistant" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active">
+                    <i data-lucide="bot" class="w-4 h-4"></i> GPT-Realtime-2 (語音助理)
+                </button>
+                <button onclick="switchTab('translate')" id="tab-translate" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive">
+                    <i data-lucide="globe" class="w-4 h-4"></i> GPT-Realtime-Translate (即時翻譯)
+                </button>
+                <button onclick="switchTab('whisper')" id="tab-whisper" class="flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive">
+                    <i data-lucide="mic-2" class="w-4 h-4"></i> GPT-Realtime-Whisper (即時聽寫)
+                </button>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                <div class="md:col-span-5">
-                    <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-1">
-                        <i data-lucide="settings" class="w-4 h-4"></i> OpenAI API Key
-                    </label>
-                    <input 
-                        type="password" 
-                        id="apiKeyInput"
-                        placeholder="sk-proj-..."
-                        class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
-                    />
+            <div class="p-5">
+                <!-- 功能解說區 -->
+                <div id="explanationContainer" class="mb-6 p-4 bg-indigo-900/20 border border-indigo-500/30 rounded-xl text-indigo-200 text-sm leading-relaxed">
+                    <!-- 動態載入解說內容 -->
                 </div>
-                <div class="md:col-span-4">
-                    <label class="block text-sm font-medium text-gray-400 mb-1">目標翻譯語言</label>
-                    <select
-                        id="targetLanguageSelect"
-                        class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none"
-                    >
-                        <option value="en">英文 (English)</option>
-                        <option value="ja">日文 (日本語)</option>
-                        <option value="vi">越南文 (Tiếng Việt)</option>
-                        <option value="ko">韓文 (한국어)</option>
-                        <option value="es">西班牙文 (Español)</option>
-                    </select>
+
+                <div id="errorContainer" class="hidden mb-4 p-3 bg-red-500/10 border border-red-500/50 rounded-lg flex items-start gap-2 text-red-400 text-sm">
+                    <i data-lucide="alert-circle" class="w-4 h-4 shrink-0 mt-0.5"></i>
+                    <span id="errorMessage" class="break-all"></span>
                 </div>
-                <div class="md:col-span-3">
-                    <button
-                        id="toggleRecordingBtn"
-                        class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
-                    >
-                        <i data-lucide="mic" id="btnIcon" class="w-4 h-4"></i> 
-                        <span id="btnText">開始連線</span>
-                    </button>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                    <div class="md:col-span-5">
+                        <label class="block text-sm font-medium text-gray-400 mb-1 flex items-center gap-1">
+                            <i data-lucide="key" class="w-4 h-4"></i> OpenAI API Key
+                        </label>
+                        <input 
+                            type="password" 
+                            id="apiKeyInput"
+                            placeholder="sk-proj-..."
+                            class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+                        />
+                    </div>
+                    <div class="md:col-span-4">
+                        <label class="block text-sm font-medium text-gray-400 mb-1">功能參數設定</label>
+                        <!-- 翻譯語言選擇 (僅在翻譯模式顯示) -->
+                        <select id="targetLanguageSelect" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                            <option value="en">翻成：英文 (English)</option>
+                            <option value="ja">翻成：日文 (日本語)</option>
+                            <option value="vi">翻成：越南文 (Tiếng Việt)</option>
+                        </select>
+                        <!-- 助理角色選擇 (僅在助理模式顯示) -->
+                        <select id="assistantRoleSelect" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                            <option value="招生顧問">角色：文藻外語大學招生顧問</option>
+                            <option value="面試官">角色：嚴格的大學面試官</option>
+                            <option value="心靈導師">角色：溫柔的心靈導師</option>
+                        </select>
+                        <!-- 聽寫提示 (僅在聽寫模式顯示) -->
+                        <div id="whisperNotice" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-400">
+                            純轉錄模式 (無 AI 回應)
+                        </div>
+                    </div>
+                    <div class="md:col-span-3">
+                        <button
+                            id="toggleRecordingBtn"
+                            class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
+                        >
+                            <i data-lucide="mic" id="btnIcon" class="w-4 h-4"></i> 
+                            <span id="btnText">開始連線測試</span>
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -107,28 +138,33 @@
             </div>
 
             <!-- 右側：對話與翻譯區 -->
-            <div class="lg:col-span-3 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 flex flex-col h-[500px]">
+            <div class="lg:col-span-3 bg-gray-800 rounded-2xl shadow-lg border border-gray-700 flex flex-col h-[550px]">
                 <div class="p-4 border-b border-gray-700 bg-gray-800/80 flex justify-between items-center rounded-t-2xl">
-                    <h2 class="font-semibold text-gray-200">即時雙語對話</h2>
+                    <h2 id="chatBoxTitle" class="font-semibold text-gray-200">語音對話紀錄</h2>
                     <div id="recordingIndicator" class="hidden flex items-center gap-2">
                         <i data-lucide="activity" class="w-4 h-4 text-indigo-400 animate-pulse"></i>
                         <span class="text-xs text-indigo-400">伺服器自動偵測語音中...</span>
                     </div>
                 </div>
                 
-                <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 scroll-smooth">
+                <div id="transcriptContainer" class="p-6 flex-1 bg-gray-900/50 overflow-y-auto space-y-6 scroll-smooth relative">
+                    <!-- 歷史紀錄將插入於此 -->
+                    
                     <!-- 正在講話的即時區塊 -->
-                    <div id="currentSpeechContainer" class="hidden flex-col gap-1 max-w-[85%] opacity-80">
-                        <div id="currentTranscript" class="hidden text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700 border-dashed">
-                            <span></span> <span class="animate-pulse">...</span>
+                    <div id="currentSpeechContainer" class="hidden flex-col gap-2 max-w-[90%] opacity-90">
+                        <!-- 原文 (使用者) 永遠在上方 -->
+                        <div id="currentTranscript" class="flex flex-col gap-1 items-start">
+                            <span class="text-xs text-gray-500 ml-1">您說的話 (轉錄中)：</span>
+                            <div class="text-sm text-gray-300 bg-gray-800 w-fit px-4 py-2 rounded-xl rounded-bl-none border border-gray-600 border-dashed">
+                                <span class="transcript-text text-gray-500 italic">(聆聽中...)</span> <span class="animate-pulse">...</span>
+                            </div>
                         </div>
-                        <div id="currentTranslation" class="hidden text-base text-indigo-200 bg-indigo-600/10 w-fit px-4 py-2 rounded-xl rounded-tl-none border border-indigo-500/30 border-dashed">
-                            <span></span> <span class="animate-pulse">_</span>
-                        </div>
-                        <div id="waitingIndicator" class="hidden flex items-center gap-1 py-2 text-gray-500">
-                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
-                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
-                            <div class="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                        <!-- AI 回應 / 翻譯 在下方 -->
+                        <div id="currentTranslation" class="flex flex-col gap-1 items-start mt-1 hidden">
+                            <span id="aiLabel" class="text-xs text-indigo-400 ml-1">AI 回應：</span>
+                            <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 border-dashed">
+                                <span class="translation-text"></span> <span class="animate-pulse font-bold text-indigo-400">_</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -150,6 +186,7 @@
         let transcripts = [];
         let currentTranscriptText = '';
         let currentTranslationText = '';
+        let activeMode = 'assistant'; // 'assistant', 'translate', 'whisper'
 
         // WebRTC & WebSocket 相關變數
         let ws = null;
@@ -161,14 +198,18 @@
         // --- DOM 元素 ---
         const apiKeyInput = document.getElementById('apiKeyInput');
         const targetLanguageSelect = document.getElementById('targetLanguageSelect');
+        const assistantRoleSelect = document.getElementById('assistantRoleSelect');
+        const whisperNotice = document.getElementById('whisperNotice');
+        
         const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
         const btnIcon = document.getElementById('btnIcon');
         const btnText = document.getElementById('btnText');
-        
         const statusIndicator = document.getElementById('statusIndicator');
         const statusMessage = document.getElementById('statusMessage');
         const errorContainer = document.getElementById('errorContainer');
         const errorMessage = document.getElementById('errorMessage');
+        const explanationContainer = document.getElementById('explanationContainer');
+        const chatBoxTitle = document.getElementById('chatBoxTitle');
         
         const sessionTimeDisplay = document.getElementById('sessionTimeDisplay');
         const sessionCostDisplay = document.getElementById('sessionCostDisplay');
@@ -180,12 +221,65 @@
         const currentSpeechContainer = document.getElementById('currentSpeechContainer');
         const currentTranscriptEl = document.getElementById('currentTranscript');
         const currentTranslationEl = document.getElementById('currentTranslation');
-        const waitingIndicator = document.getElementById('waitingIndicator');
+
+        // --- 初始化解說文字 ---
+        const explanations = {
+            assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 助理模式)：</strong><br>
+                        此模式賦予 AI 強大的推理與角色扮演能力。您可以選擇一個「角色」，按下連線後直接與它對話。AI 會像真人一樣思考並即時用語音/文字回應您。<br>
+                        <em>測試建議：選擇「招生顧問」，然後問它：「請問文藻五專部有什麼特色？」</em>`,
+            translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 即時翻譯模式)：</strong><br>
+                        此模式專為跨語言溝通打造。設定目標語言後，您只要用中文說話，AI 會立刻開始「串流翻譯」，將結果逐字顯示出來。您會發現翻譯文字往往比原文轉錄還要早出現，這是因為 AI 的預測能力極強。<br>
+                        <em>測試建議：選擇「日文」，隨意說一段日常問候語。</em>`,
+            whisper:   `<strong>💡 玩法解說 (GPT-Realtime-Whisper 即時聽寫模式)：</strong><br>
+                        此模式關閉了 AI 的回應功能，專注於「零延遲的語音轉文字」。非常適合用在課堂逐字稿、會議紀錄。系統會在您講話停頓時，自動生成精準的逐字稿。<br>
+                        <em>測試建議：直接念一段新聞稿或課文，觀察它對專有名詞的辨識度。</em>`
+        };
 
         // --- 初始化設定 ---
         const savedApiKey = localStorage.getItem('openai_api_key');
         if (savedApiKey) { apiKeyInput.value = savedApiKey; }
         apiKeyInput.addEventListener('change', (e) => localStorage.setItem('openai_api_key', e.target.value));
+        explanationContainer.innerHTML = explanations['assistant'];
+
+        // --- 分頁切換邏輯 ---
+        window.switchTab = function(mode) {
+            if (isRecording) {
+                showError("請先停止目前的連線，再切換模式！");
+                return;
+            }
+            activeMode = mode;
+            
+            // UI 樣式切換
+            ['assistant', 'translate', 'whisper'].forEach(m => {
+                const btn = document.getElementById(`tab-${m}`);
+                if (m === mode) {
+                    btn.className = "flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-active";
+                } else {
+                    btn.className = "flex-1 py-3 px-4 text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 tab-inactive";
+                }
+            });
+
+            // 參數設定區塊切換
+            targetLanguageSelect.classList.add('hidden');
+            assistantRoleSelect.classList.add('hidden');
+            whisperNotice.classList.add('hidden');
+
+            if (mode === 'translate') {
+                targetLanguageSelect.classList.remove('hidden');
+                chatBoxTitle.textContent = "即時雙語對話";
+                document.getElementById('aiLabel').textContent = "即時翻譯：";
+            } else if (mode === 'assistant') {
+                assistantRoleSelect.classList.remove('hidden');
+                chatBoxTitle.textContent = "AI 助理對話紀錄";
+                document.getElementById('aiLabel').textContent = "AI 回應：";
+            } else if (mode === 'whisper') {
+                whisperNotice.classList.remove('hidden');
+                chatBoxTitle.textContent = "會議逐字稿 (僅轉錄)";
+            }
+
+            // 更新解說文字
+            explanationContainer.innerHTML = explanations[mode];
+        };
 
         // --- 工具函數 ---
         function showError(msg) {
@@ -247,44 +341,62 @@
         }
 
         function updateTranscriptUI() {
+            // 清理舊的 DOM
             const historyElements = transcriptContainer.querySelectorAll('.history-item');
             historyElements.forEach(el => el.remove());
 
+            // 重新渲染歷史紀錄
             transcripts.forEach((item) => {
                 const itemDiv = document.createElement('div');
-                itemDiv.className = 'history-item flex flex-col gap-1 max-w-[85%]';
-                itemDiv.innerHTML = `
-                    <div class="text-sm text-gray-400 bg-gray-800 w-fit px-3 py-1.5 rounded-lg rounded-bl-none border border-gray-700">${item.original}</div>
-                    <div class="text-base text-white bg-indigo-600/20 w-fit px-4 py-2 rounded-xl rounded-tl-none border border-indigo-500/30 font-medium">${item.translation}</div>
+                itemDiv.className = 'history-item flex flex-col gap-2 max-w-[90%] mb-6';
+                
+                let html = `
+                    <div class="flex flex-col gap-1 items-start">
+                        <span class="text-xs text-gray-500 ml-1">使用者：</span>
+                        <div class="text-sm text-gray-300 bg-gray-800 w-fit px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">
+                            ${item.original}
+                        </div>
+                    </div>
                 `;
+                
+                if (item.translation && activeMode !== 'whisper') {
+                    const label = activeMode === 'translate' ? '即時翻譯：' : 'AI 回應：';
+                    html += `
+                    <div class="flex flex-col gap-1 items-start mt-1">
+                        <span class="text-xs text-indigo-400 ml-1">${label}</span>
+                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium">
+                            ${item.translation}
+                        </div>
+                    </div>
+                    `;
+                }
+                itemDiv.innerHTML = html;
                 transcriptContainer.insertBefore(itemDiv, currentSpeechContainer);
             });
 
-            if (currentTranscriptText || currentTranslationText || isRecording) {
+            // 處理即時區塊
+            if (isRecording) {
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
                 
+                // 確保原文區塊永遠可見，修復「翻譯先出來」的視覺錯位
+                const transcriptSpan = currentTranscriptEl.querySelector('.transcript-text');
                 if (currentTranscriptText) {
-                    currentTranscriptEl.classList.remove('hidden');
-                    currentTranscriptEl.querySelector('span').textContent = currentTranscriptText;
+                    transcriptSpan.textContent = currentTranscriptText;
+                    transcriptSpan.className = "transcript-text text-gray-300"; // 正常顏色
                 } else {
-                    currentTranscriptEl.classList.add('hidden');
+                    transcriptSpan.textContent = "(聆聽中...)";
+                    transcriptSpan.className = "transcript-text text-gray-500 italic"; // 佔位顏色
                 }
 
-                if (currentTranslationText) {
+                // AI 回應區塊
+                if (activeMode !== 'whisper' && currentTranslationText) {
                     currentTranslationEl.classList.remove('hidden');
-                    currentTranslationEl.querySelector('span').textContent = currentTranslationText;
+                    currentTranslationEl.querySelector('.translation-text').textContent = currentTranslationText;
                 } else {
                     currentTranslationEl.classList.add('hidden');
                 }
 
-                if (isRecording && !currentTranscriptText && !currentTranslationText) {
-                    waitingIndicator.classList.remove('hidden');
-                    waitingIndicator.classList.add('flex');
-                } else {
-                    waitingIndicator.classList.add('hidden');
-                    waitingIndicator.classList.remove('flex');
-                }
             } else {
                 currentSpeechContainer.classList.add('hidden');
                 currentSpeechContainer.classList.remove('flex');
@@ -301,7 +413,6 @@
             if (mediaStream) { mediaStream.getTracks().forEach(track => track.stop()); mediaStream = null; }
             
             if (ws) {
-                // 移除事件監聽器，防止連鎖錯誤
                 ws.onmessage = null; 
                 ws.onerror = null;
                 if(ws.readyState === WebSocket.OPEN) {
@@ -313,11 +424,12 @@
 
             if (timerId) { clearInterval(timerId); timerId = null; }
 
+            // 保存最後的對話
             if(currentTranscriptText || currentTranslationText) {
                 transcripts.push({
                     role: 'user', 
-                    original: currentTranscriptText || '(未轉錄)', 
-                    translation: currentTranslationText || '(未翻譯)'
+                    original: currentTranscriptText || '(未收到完整語音轉錄)', 
+                    translation: currentTranslationText
                 });
             }
             
@@ -326,11 +438,12 @@
             
             toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20";
             btnIcon.setAttribute('data-lucide', 'mic');
-            btnText.textContent = '開始連線';
+            btnText.textContent = '開始連線測試';
             lucide.createIcons();
             
             apiKeyInput.disabled = false;
             targetLanguageSelect.disabled = false;
+            assistantRoleSelect.disabled = false;
             recordingIndicator.classList.add('hidden');
             recordingIndicator.classList.remove('flex');
             
@@ -340,7 +453,6 @@
 
         async function startRecording() {
             try {
-                // 防呆：確保此時 WebSocket 沒有出錯且處於開啟狀態
                 if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
                 mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -369,15 +481,16 @@
                 
                 toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-red-500/20 text-red-500 border border-red-500 hover:bg-red-500/30";
                 btnIcon.setAttribute('data-lucide', 'square');
-                btnText.textContent = '停止翻譯';
+                btnText.textContent = '停止連線';
                 lucide.createIcons();
                 
                 apiKeyInput.disabled = true;
                 targetLanguageSelect.disabled = true;
+                assistantRoleSelect.disabled = true;
                 recordingIndicator.classList.remove('hidden');
                 recordingIndicator.classList.add('flex');
                 
-                setStatus('錄音中...');
+                setStatus('錄音與即時處理中...');
 
                 timerId = setInterval(() => {
                     sessionSeconds++;
@@ -398,12 +511,10 @@
             const apiKey = apiKeyInput.value.trim();
             if (!apiKey) { showError('請輸入 OpenAI API Key'); return; }
 
-            // 每次連線前先清空錯誤
             showError('');
 
             try {
                 setStatus('連線至 OpenAI Realtime API...');
-                // 更新：使用最新通用模型標籤，避免特定日期版本的權限問題
                 const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview";
                 
                 ws = new WebSocket(url, [
@@ -413,14 +524,27 @@
                 ]);
 
                 ws.onopen = () => {
-                    setStatus('連線成功！驗證參數中...');
+                    setStatus('連線成功！正在寫入系統提示詞 (System Prompt)...');
                     
-                    const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
+                    let systemInstructions = "";
+                    let modalities = ["text"];
+
+                    // 根據選定的分頁(Tab)設定不同的大腦指令
+                    if (activeMode === 'assistant') {
+                        const role = assistantRoleSelect.value;
+                        systemInstructions = `You are a helpful and intelligent assistant. Your role is: ${role}. Answer the user's queries concisely and naturally in Traditional Chinese (zh-TW).`;
+                    } else if (activeMode === 'translate') {
+                        const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
+                        systemInstructions = `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation. Do NOT reply to the user's questions, just translate.`;
+                    } else if (activeMode === 'whisper') {
+                        systemInstructions = `You are a dictation assistant. Listen to the user. DO NOT generate any text response.`;
+                    }
+
                     const sessionUpdate = {
                         type: "session.update",
                         session: {
-                            modalities: ["text"],
-                            instructions: `You are a real-time translator. Translate whatever the user says into ${targetLangName}. Provide ONLY the translation, no other conversational filler.`,
+                            modalities: modalities,
+                            instructions: systemInstructions,
                             input_audio_format: "pcm16",
                             input_audio_transcription: { model: "whisper-1" },
                             turn_detection: {
@@ -438,27 +562,39 @@
                     const message = JSON.parse(event.data);
 
                     switch (message.type) {
-                        // 確保 OpenAI 接受設定後，才啟動麥克風 (修復 Race Condition)
                         case 'session.updated':
-                            setStatus('設定完成，啟動麥克風...');
+                            setStatus('大腦載入完成，請開始說話...');
                             startRecording();
                             break;
                             
                         case 'conversation.item.input_audio_transcription.completed':
                             currentTranscriptText = message.transcript;
                             updateTranscriptUI();
+                            // 如果是 whisper 模式，一旦收到轉錄就視為完成，直接推入歷史紀錄
+                            if (activeMode === 'whisper') {
+                                transcripts.push({
+                                    role: 'user', 
+                                    original: currentTranscriptText,
+                                    translation: ''
+                                });
+                                currentTranscriptText = '';
+                                updateTranscriptUI();
+                            }
                             break;
                             
                         case 'response.text.delta':
-                            currentTranslationText += message.delta;
-                            updateTranscriptUI();
+                            // whisper 模式下忽略 AI 產生的文字
+                            if (activeMode !== 'whisper') {
+                                currentTranslationText += message.delta;
+                                updateTranscriptUI();
+                            }
                             break;
 
                         case 'response.done':
-                            if (currentTranscriptText || currentTranslationText) {
+                            if ((currentTranscriptText || currentTranslationText) && activeMode !== 'whisper') {
                                 transcripts.push({
                                     role: 'user', 
-                                    original: currentTranscriptText || '...',
+                                    original: currentTranscriptText || '(未收到完整語音轉錄)',
                                     translation: currentTranslationText
                                 });
                                 currentTranscriptText = '';
@@ -468,7 +604,6 @@
                             break;
                             
                         case 'error':
-                            // 解析並顯示完整的真實錯誤物件
                             const errorDetail = message.error ? (message.error.message || JSON.stringify(message.error)) : JSON.stringify(message);
                             console.error("OpenAI Error:", errorDetail);
                             showError(`OpenAI 回傳錯誤: ${errorDetail}`);
@@ -483,7 +618,6 @@
                 };
 
                 ws.onclose = () => {
-                    // 只有在錄音狀態下非預期中斷才顯示提示
                     if(isRecording) { setStatus('連線已中斷'); }
                     stopSession();
                 };
