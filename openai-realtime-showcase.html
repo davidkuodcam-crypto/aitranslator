@@ -118,8 +118,8 @@
                             id="toggleRecordingBtn"
                             class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
                         >
-                            <i data-lucide="mic" id="btnIcon" class="w-4 h-4"></i> 
-                            <span id="btnText">開始連線測試</span>
+                            <i data-lucide="mic" class="w-4 h-4"></i> 
+                            <span>開始連線測試</span>
                         </button>
                     </div>
                 </div>
@@ -171,14 +171,14 @@
                         <div id="currentTranscript" class="flex flex-col gap-1 items-start">
                             <span class="text-xs text-gray-500 ml-1">您說的話 (轉錄中)：</span>
                             <div class="text-sm text-gray-300 bg-gray-800 w-fit px-4 py-2 rounded-xl rounded-bl-none border border-gray-600 border-dashed">
-                                <span class="transcript-text text-gray-500 italic">(聆聽中...)</span> <span class="animate-pulse">...</span>
+                                <span class="transcript-text text-gray-500 italic">(聆聽中...)</span><span class="animate-pulse">...</span>
                             </div>
                         </div>
                         <!-- AI 回應 / 翻譯 -->
                         <div id="currentTranslation" class="flex flex-col gap-1 items-start mt-1 hidden">
                             <span id="aiLabel" class="text-xs text-indigo-400 ml-1">AI 回應：</span>
                             <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 border-dashed">
-                                <span class="translation-text"></span> <span class="animate-pulse font-bold text-indigo-400">_</span>
+                                <span class="translation-text"></span><span class="animate-pulse font-bold text-indigo-400">_</span>
                             </div>
                         </div>
                     </div>
@@ -192,7 +192,7 @@
         lucide.createIcons();
 
         // --- 狀態與常數 ---
-        let RATE_PER_MINUTE = 0.034;
+        let RATE_PER_MINUTE = 0.095;
         let RATE_PER_SECOND = RATE_PER_MINUTE / 60;
         let isRecording = false;
         let sessionSeconds = 0;
@@ -225,8 +225,6 @@
         const whisperNotice = document.getElementById('whisperNotice');
         
         const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
-        const btnIcon = document.getElementById('btnIcon');
-        const btnText = document.getElementById('btnText');
         const statusIndicator = document.getElementById('statusIndicator');
         const statusMessage = document.getElementById('statusMessage');
         const errorContainer = document.getElementById('errorContainer');
@@ -245,6 +243,9 @@
         const currentTranscriptEl = document.getElementById('currentTranscript');
         const currentTranslationEl = document.getElementById('currentTranslation');
         const transcriptContainer = document.getElementById('transcriptContainer');
+
+        // 初始化預設單價
+        rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
 
         // --- 初始化解說文字 ---
         const explanations = {
@@ -283,20 +284,33 @@
             assistantSettings.classList.add('hidden');
             whisperNotice.classList.add('hidden');
 
-            if (mode === 'translate') {
-                targetLanguageSelect.classList.remove('hidden');
-                chatBoxTitle.textContent = "即時雙語對話";
-                document.getElementById('aiLabel').textContent = "即時翻譯：";
-            } else if (mode === 'assistant') {
+            // 切換模型時，單價立即更新
+            if (mode === 'assistant') {
+                RATE_PER_MINUTE = 0.095;
                 assistantSettings.classList.remove('hidden');
                 assistantSettings.classList.add('flex');
                 chatBoxTitle.textContent = "AI 語音助理 (支援外部資料查詢)";
                 document.getElementById('aiLabel').textContent = "AI 回應：";
+            } else if (mode === 'translate') {
+                RATE_PER_MINUTE = 0.034;
+                targetLanguageSelect.classList.remove('hidden');
+                chatBoxTitle.textContent = "即時雙語對話";
+                document.getElementById('aiLabel').textContent = "即時翻譯：";
             } else if (mode === 'whisper') {
+                RATE_PER_MINUTE = 0.017;
                 whisperNotice.classList.remove('hidden');
                 whisperNotice.classList.add('flex');
                 chatBoxTitle.textContent = "會議逐字稿 (僅轉錄)";
             }
+            RATE_PER_SECOND = RATE_PER_MINUTE / 60;
+            rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
+            
+            // 切換模型時，交談文字立即清除
+            transcripts = [];
+            currentTranscriptText = '';
+            currentTranslationText = '';
+            updateTranscriptUI();
+
             explanationContainer.innerHTML = explanations[mode];
         };
 
@@ -506,9 +520,7 @@
                 let html = `
                     <div class="flex flex-col gap-1 items-start">
                         <span class="text-xs text-gray-500 ml-1">使用者：</span>
-                        <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">
-                            ${item.original}
-                        </div>
+                        <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">${item.original ? item.original.trim() : ''}</div>
                     </div>
                 `;
                 
@@ -519,9 +531,7 @@
                     html += `
                     <div class="flex flex-col gap-1 items-start mt-1">
                         <span class="text-xs text-indigo-400 ml-1">${label}</span>
-                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit max-w-[90%] px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium">
-                            ${item.translation}
-                        </div>
+                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit max-w-[90%] px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium">${item.translation.trim()}</div>
                     </div>
                     `;
                 }
@@ -592,12 +602,10 @@
             currentTranscriptText = '';
             currentTranslationText = '';
             
-            // 恢復按鈕為可連線狀態
+            // 恢復按鈕為可連線狀態，徹底重新建立圖示避免無限旋轉殘留
             toggleRecordingBtn.disabled = false;
             toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20";
-            btnIcon.setAttribute('data-lucide', 'mic');
-            btnIcon.classList.remove('animate-spin');
-            btnText.textContent = '開始連線測試';
+            toggleRecordingBtn.innerHTML = `<i data-lucide="mic" class="w-4 h-4"></i> <span>開始連線測試</span>`;
             lucide.createIcons();
             
             apiKeyInput.disabled = false;
@@ -641,12 +649,10 @@
 
                 isRecording = true;
                 
-                // 連線成功，切換為紅色停止按鈕
+                // 連線成功，切換為紅色停止按鈕，重新建立圖示
                 toggleRecordingBtn.disabled = false;
                 toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-red-500/20 text-red-500 border border-red-500 hover:bg-red-500/30";
-                btnIcon.setAttribute('data-lucide', 'square');
-                btnIcon.classList.remove('animate-spin');
-                btnText.textContent = '停止連線';
+                toggleRecordingBtn.innerHTML = `<i data-lucide="square" class="w-4 h-4"></i> <span>停止連線</span>`;
                 lucide.createIcons();
                 
                 apiKeyInput.disabled = true;
@@ -680,24 +686,12 @@
 
             showError('');
             
-            // 防呆與即時 UI 反饋：點擊瞬間讓按鈕進入讀取狀態，避免重複點擊
+            // 防呆與即時 UI 反饋：點擊瞬間讓按鈕進入讀取狀態，徹底重新建立圖示避免殘留
             toggleRecordingBtn.disabled = true;
             toggleRecordingBtn.className = "w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-400 text-white cursor-not-allowed shadow-lg shadow-indigo-600/20";
-            btnIcon.setAttribute('data-lucide', 'loader-2');
-            btnIcon.classList.add('animate-spin');
-            btnText.textContent = '連線準備中...';
+            toggleRecordingBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> <span>連線準備中...</span>`;
             lucide.createIcons();
             
-            // 根據模型設定費率預估
-            if (activeMode === 'assistant') {
-                RATE_PER_MINUTE = 0.095; // 語音助理雙向處理，預估費率較高
-            } else if (activeMode === 'translate') {
-                RATE_PER_MINUTE = 0.034; // 即時翻譯
-            } else if (activeMode === 'whisper') {
-                RATE_PER_MINUTE = 0.017; // 單純轉錄最低
-            }
-            RATE_PER_SECOND = RATE_PER_MINUTE / 60;
-            rateDisplay.textContent = `(費率: $${RATE_PER_MINUTE}/分)`;
             sessionCost = 0;
             sessionSeconds = 0;
             updateBillingUI();
