@@ -84,36 +84,45 @@
                             <option value="vi">翻成：越南文 (Tiếng Việt)</option>
                         </select>
                         <!-- 助理角色選擇 -->
-                        <div id="assistantSettings" class="flex gap-2 w-full">
-                            <select id="assistantRoleSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                                <option value="招生顧問">角色：文藻外語招生顧問</option>
-                                <option value="面試官">角色：嚴格的大學面試官</option>
-                                <option value="心靈導師">角色：溫柔的心靈導師</option>
-                            </select>
-                            <select id="voiceSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                                <option value="alloy">中性/女聲 (Alloy)</option>
-                                <option value="echo">男聲 (Echo)</option>
-                                <option value="shimmer">柔和女聲 (Shimmer)</option>
-                                <option value="ash">沉穩男聲 (Ash)</option>
-                                <option value="ballad">溫暖男聲 (Ballad)</option>
-                                <option value="coral">活潑女聲 (Coral)</option>
-                                <option value="sage">知性女聲 (Sage)</option>
-                                <option value="verse">清亮女聲 (Verse)</option>
-                            </select>
-                            <select id="assistantLangSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
-                                <option value="zh-TW">回答：繁體中文</option>
-                                <option value="en">回答：英文 (English)</option>
-                                <option value="ja">回答：日文 (日本語)</option>
-                                <option value="ko">回答：韓文 (한국어)</option>
-                                <option value="fr">回答：法文 (Français)</option>
-                            </select>
+                        <div id="assistantSettings" class="flex flex-col gap-2 w-full">
+                            <div class="flex gap-2 w-full">
+                                <input type="text" id="customPromptInput" value="角色：文藻外語招生顧問" placeholder="輸入自訂角色或提示詞..." class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50" />
+                                <select id="voiceSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                    <option value="alloy">中性/女聲 (Alloy)</option>
+                                    <option value="echo">男聲 (Echo)</option>
+                                    <option value="shimmer">柔和女聲 (Shimmer)</option>
+                                    <option value="ash">沉穩男聲 (Ash)</option>
+                                    <option value="ballad">溫暖男聲 (Ballad)</option>
+                                    <option value="coral">活潑女聲 (Coral)</option>
+                                    <option value="sage">知性女聲 (Sage)</option>
+                                    <option value="verse">清亮女聲 (Verse)</option>
+                                </select>
+                                <select id="assistantLangSelect" class="w-1/3 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-indigo-500 transition-colors disabled:opacity-50 appearance-none">
+                                    <option value="zh-TW">回答：繁體中文</option>
+                                    <option value="en">回答：英文 (English)</option>
+                                    <option value="ja">回答：日文 (日本語)</option>
+                                    <option value="ko">回答：韓文 (한국어)</option>
+                                    <option value="fr">回答：法文 (Français)</option>
+                                </select>
+                            </div>
                         </div>
+                        
+                        <!-- 工具選擇區 (僅在助理模式顯示) -->
+                        <div id="toolSelectionContainer" class="flex flex-col gap-2 w-full mt-3">
+                            <span class="text-xs text-gray-400">外部工具調用清單 (Agent 能力展示)：</span>
+                            <div class="flex flex-wrap gap-4">
+                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolAdmission" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 文藻招生資料庫</label>
+                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolWebSearch" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 維基百科搜尋</label>
+                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolTime" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 當前系統時間</label>
+                            </div>
+                        </div>
+
                         <!-- 聽寫提示 -->
                         <div id="whisperNotice" class="hidden w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-sm text-gray-400 flex items-center gap-2">
                             <i data-lucide="info" class="w-4 h-4"></i> 此模式無參數需設定，系統將進行純轉錄 (無 AI 回應)。
                         </div>
                     </div>
-                    <div class="md:col-span-4">
+                    <div class="md:col-span-4 flex items-end">
                         <button
                             id="toggleRecordingBtn"
                             class="w-full py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 font-bold transition-all bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-600/20"
@@ -219,10 +228,14 @@
         const apiKeyInput = document.getElementById('apiKeyInput');
         const targetLanguageSelect = document.getElementById('targetLanguageSelect');
         const assistantSettings = document.getElementById('assistantSettings');
-        const assistantRoleSelect = document.getElementById('assistantRoleSelect');
+        const customPromptInput = document.getElementById('customPromptInput');
         const voiceSelect = document.getElementById('voiceSelect');
         const assistantLangSelect = document.getElementById('assistantLangSelect');
         const whisperNotice = document.getElementById('whisperNotice');
+        const toolSelectionContainer = document.getElementById('toolSelectionContainer');
+        const toolAdmission = document.getElementById('toolAdmission');
+        const toolWebSearch = document.getElementById('toolWebSearch');
+        const toolTime = document.getElementById('toolTime');
         
         const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
         const statusIndicator = document.getElementById('statusIndicator');
@@ -250,8 +263,8 @@
         // --- 初始化解說文字 ---
         const explanations = {
             assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 語音對話助理模式 + 工具調用)：</strong><br>
-                        AI 具備「原生聽說能力」與上網能力。如果要求它講外文，會自動在文字附上中文翻譯。<br>
-                        <em>🔥 神奇測試建議：請用語音問它：<span class="text-yellow-400">「文藻外語大學現任校長是誰？」</span> 或 <span class="text-yellow-400">「今天高雄天氣如何？」</span>，觀察它觸發工具上網搜尋！</em>`,
+                        您可以自由輸入扮演角色，並勾選它能調用的工具。如果要求它講外文，會自動在文字附上中文翻譯。<br>
+                        <em>🔥 神奇測試建議：勾選「系統時間」並問它：「現在幾點？」 或 勾選「維基百科搜尋」問它：「文藻外語大學現任校長是誰？」</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 即時翻譯模式)：</strong><br>
                         此模式關閉 AI 語音，純做文字翻譯。<br>
                         <strong>技術備註：</strong>您可能會發現翻譯在您「停頓」後才瞬間出現。這是因為 OpenAI 依賴 VAD (語音活動偵測) 來判斷您講完一句話，主打「超低延遲的停頓後翻譯」。`,
@@ -282,6 +295,7 @@
 
             targetLanguageSelect.classList.add('hidden');
             assistantSettings.classList.add('hidden');
+            toolSelectionContainer.classList.add('hidden');
             whisperNotice.classList.add('hidden');
 
             // 切換模型時，單價立即更新
@@ -289,6 +303,7 @@
                 RATE_PER_MINUTE = 0.095;
                 assistantSettings.classList.remove('hidden');
                 assistantSettings.classList.add('flex');
+                toolSelectionContainer.classList.remove('hidden');
                 chatBoxTitle.textContent = "AI 語音助理 (支援外部資料查詢)";
                 document.getElementById('aiLabel').textContent = "AI 回應：";
             } else if (mode === 'translate') {
@@ -453,6 +468,9 @@
                         }
                     }
                     await new Promise(r => setTimeout(r, 800)); // 模擬延遲
+                } else if (name === "get_current_time") {
+                    result.data = `目前系統日期與時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`;
+                    await new Promise(r => setTimeout(r, 200)); 
                 } else if (name === "search_web_information") {
                     const query = args.query || "最新資訊";
                     try {
@@ -520,7 +538,7 @@
                 let html = `
                     <div class="flex flex-col gap-1 items-start">
                         <span class="text-xs text-gray-500 ml-1">使用者：</span>
-                        <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">${item.original ? item.original.trim() : ''}</div>
+                        <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">${item.original ? item.original.trimStart() : ''}</div>
                     </div>
                 `;
                 
@@ -531,7 +549,7 @@
                     html += `
                     <div class="flex flex-col gap-1 items-start mt-1">
                         <span class="text-xs text-indigo-400 ml-1">${label}</span>
-                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit max-w-[90%] px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium">${item.translation.trim()}</div>
+                        <div class="text-base text-indigo-100 bg-indigo-600/20 w-fit max-w-[90%] px-4 py-2.5 rounded-2xl rounded-tl-none border border-indigo-500/40 font-medium whitespace-pre-wrap">${item.translation.trimStart()}</div>
                     </div>
                     `;
                 }
@@ -546,7 +564,8 @@
                 
                 const transcriptSpan = currentTranscriptEl.querySelector('.transcript-text');
                 if (currentTranscriptText) {
-                    transcriptSpan.textContent = currentTranscriptText;
+                    // 使用 trimStart 確保文字不會有前導空白
+                    transcriptSpan.textContent = currentTranscriptText.trimStart();
                     transcriptSpan.className = "transcript-text text-gray-300";
                 } else {
                     transcriptSpan.textContent = "(聆聽中...)";
@@ -555,7 +574,8 @@
 
                 if (activeMode !== 'whisper' && currentTranslationText) {
                     currentTranslationEl.classList.remove('hidden');
-                    currentTranslationEl.querySelector('.translation-text').textContent = currentTranslationText;
+                    // 使用 trimStart 確保即時打字效果不會帶有前導空白
+                    currentTranslationEl.querySelector('.translation-text').textContent = currentTranslationText.trimStart();
                 } else {
                     currentTranslationEl.classList.add('hidden');
                 }
@@ -610,9 +630,13 @@
             
             apiKeyInput.disabled = false;
             targetLanguageSelect.disabled = false;
-            assistantRoleSelect.disabled = false;
+            customPromptInput.disabled = false;
             voiceSelect.disabled = false;
             assistantLangSelect.disabled = false;
+            toolAdmission.disabled = false;
+            toolWebSearch.disabled = false;
+            toolTime.disabled = false;
+
             recordingIndicator.classList.add('hidden');
             recordingIndicator.classList.remove('flex');
             
@@ -657,9 +681,13 @@
                 
                 apiKeyInput.disabled = true;
                 targetLanguageSelect.disabled = true;
-                assistantRoleSelect.disabled = true;
+                customPromptInput.disabled = true;
                 voiceSelect.disabled = true;
                 assistantLangSelect.disabled = true;
+                toolAdmission.disabled = true;
+                toolWebSearch.disabled = true;
+                toolTime.disabled = true;
+
                 recordingIndicator.classList.remove('hidden');
                 recordingIndicator.classList.add('flex');
                 
@@ -731,7 +759,7 @@
                     };
 
                     if (activeMode === 'assistant') {
-                        const role = assistantRoleSelect.value;
+                        const role = customPromptInput.value.trim() || "得力助手";
                         sessionConfig.modalities = ["text", "audio"];
                         sessionConfig.voice = voiceSelect.value;
                         
@@ -741,11 +769,13 @@
                             extraInstruction += `\nCRITICAL INSTRUCTION: You must speak in ${langName}. However, your TEXT output MUST be formatted as "[${langName} response] (中文翻譯：[Traditional Chinese translation])". Your AUDIO output should ONLY be in ${langName}.`;
                         }
                         
-                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks about admission requirements or department information, use the 'get_admission_info' tool. If the user asks for the latest news, weather, or real-time web search, use the 'search_web_information' tool.` + extraInstruction + dynamicLangConstraint;
+                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio.` + extraInstruction + dynamicLangConstraint;
                         
-                        // ✨ 註冊多個工具
-                        sessionConfig.tools = [
-                            {
+                        // ✨ 根據勾選狀態動態註冊工具
+                        sessionConfig.tools = [];
+                        
+                        if (toolAdmission.checked) {
+                            sessionConfig.tools.push({
                                 type: "function",
                                 name: "get_admission_info",
                                 description: "獲取文藻外語大學五專部各科系的入學門檻與特色資訊",
@@ -754,19 +784,34 @@
                                     properties: { department: { type: "string", description: "科系名稱" } },
                                     required: ["department"]
                                 }
-                            },
-                            {
+                            });
+                        }
+                        if (toolWebSearch.checked) {
+                            sessionConfig.tools.push({
                                 type: "function",
                                 name: "search_web_information",
-                                description: "上網搜尋最新的即時資訊、新聞、天氣或時事 (例如：現任校長是誰)",
+                                description: "上網搜尋維基百科的最新資訊、新聞或時事 (例如：現任校長是誰)",
                                 parameters: {
                                     type: "object",
                                     properties: { query: { type: "string", description: "要搜尋的關鍵字或問題" } },
                                     required: ["query"]
                                 }
-                            }
-                        ];
-                        sessionConfig.tool_choice = "auto";
+                            });
+                        }
+                        if (toolTime.checked) {
+                            sessionConfig.tools.push({
+                                type: "function",
+                                name: "get_current_time",
+                                description: "獲取現在的系統日期與時間",
+                                parameters: { type: "object", properties: {} }
+                            });
+                        }
+
+                        if (sessionConfig.tools.length > 0) {
+                            sessionConfig.tool_choice = "auto";
+                        } else {
+                            delete sessionConfig.tools; // 沒有勾選工具時刪除此屬性，避免 API 報錯
+                        }
 
                     } else if (activeMode === 'translate') {
                         const targetLangName = targetLanguageSelect.options[targetLanguageSelect.selectedIndex].text;
