@@ -744,14 +744,7 @@
                     updateBillingUI();
                 }, 1000);
                 
-                if (activeMode === 'whisper') {
-                    transcriptionCommitTimerId = setInterval(() => {
-                        if (ws && ws.readyState === WebSocket.OPEN && hasPendingTranscriptionAudio) {
-                            try { ws.send(JSON.stringify({ type: "input_audio_buffer.commit" })); } catch(e) {}
-                            hasPendingTranscriptionAudio = false;
-                        }
-                    }, 1200);
-                }
+                // 聽寫模式已改用 server_vad，由伺服器自動判斷語音段落並 commit；不再每 1.2 秒手動 commit，避免切斷語句。
 
                 updateTranscriptUI();
 
@@ -785,8 +778,8 @@
                 if (activeMode === 'translate') {
                     url = "wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate";
                 } else if (activeMode === 'whisper') {
-                    // Realtime transcription session：模型本體在 session.audio.input.transcription.model 指定
-                    url = "wss://api.openai.com/v1/realtime?model=gpt-realtime-2";
+                    // Realtime transcription session：WebSocket 必須使用 transcription intent，否則會被視為一般 realtime session
+                    url = "wss://api.openai.com/v1/realtime?intent=transcription";
                 }
                 
                 ws = new WebSocket(url, [
@@ -871,16 +864,11 @@
                         }
 
                     } else if (activeMode === 'translate') {
-                        // 官方 Realtime Translation session：只設定目標輸出語言，不支援自訂提示詞與固定聲音
-                        const langMap = { "en": "English", "ja": "Japanese", "vi": "Vietnamese", "zh": "Chinese", "ko": "Korean", "fr": "French", "de": "German", "es": "Spanish", "it": "Italian", "pt": "Portuguese" };
-                        const targetLangName = langMap[targetLanguageSelect.value] || "English";
+                        // 官方 Realtime Translation session：audio.output.language 必須使用語言代碼，例如 en、ja、vi，不能傳 English/Japanese 等英文名稱
+                        const targetLangCode = targetLanguageSelect.value || "en";
                         sessionConfig = {
                             audio: {
-                                input: {
-                                    transcription: { model: "gpt-realtime-whisper" },
-                                    noise_reduction: { type: "near_field" }
-                                },
-                                output: { language: targetLangName }
+                                output: { language: targetLangCode }
                             }
                         };
                         
@@ -892,7 +880,12 @@
                                 input: {
                                     format: { type: "audio/pcm", rate: 24000 },
                                     transcription: { model: "gpt-realtime-whisper", language: "zh", delay: "low" },
-                                    turn_detection: null
+                                    turn_detection: {
+                                        type: "server_vad",
+                                        threshold: 0.5,
+                                        prefix_padding_ms: 300,
+                                        silence_duration_ms: 500
+                                    }
                                 }
                             }
                         };
