@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenAI 語音模型展示戰情室 GA v11</title>
+    <title>OpenAI 語音模型展示戰情室 GA v10</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 Lucide Icons -->
@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v11
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v10
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -132,9 +132,9 @@
                                 <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolCalculator" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 簡易計算器</label>
                                 <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolDemoAction" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 展示任務建議</label>
                             </div>
-                            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-center mt-1">
-                                <span class="text-xs text-gray-500 md:col-span-1">網頁搜尋後端 API：</span>
-                                <input type="text" id="toolWebSearchEndpointInput" value="/api/web-search" class="md:col-span-2 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 transition-colors" placeholder="/api/web-search；若不存在會退回維基百科摘要">
+                            <input type="hidden" id="toolWebSearchEndpointInput" value="/api/web-search">
+                            <div class="text-xs text-gray-500 mt-1 leading-relaxed">
+                                網頁搜尋會固定呼叫後端 <code>/api/web-search</code>，不需現場輸入；請在 Vercel 環境變數設定搜尋服務金鑰。
                             </div>
                         </div>
 
@@ -319,9 +319,11 @@
         // --- 初始化解說文字 ---
         const explanations = {
             assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 官方語音助理模式 + 工具調用)：</strong><br>
-                        此模式使用 <code>gpt-realtime-2</code>，可自由輸入扮演角色，並勾選它能調用的工具。GA 版語音輸出需鎖定為 audio；畫面文字由 audio transcript 事件同步顯示。若要求它講外文，建議口頭說「請同時附中文解釋」。<br>
-                        <em>🔥 展示建議：問「現在幾點？」、「幫我查文藻日文科資訊」、「25乘以36是多少？」或「請上網查今天的 OpenAI 最新消息」。旁邊的「工具呼叫紀錄區」會清楚顯示 AI 呼叫了哪個工具。<br>
-                        <strong>網頁搜尋說明：</strong>真正的全網搜尋需搭配 Vercel 後端 <code>/api/web-search</code> 與搜尋服務金鑰；若後端不存在，系統會退回維基百科摘要，避免前端因 CORS 無法查詢。</em>`,
+                        此模式使用 <code>gpt-realtime-2</code>，特色是能進行即時語音對話、理解使用者意圖，並在需要外部資料或精確計算時呼叫工具。GA 版語音輸出需鎖定為 audio；畫面文字由 audio transcript 事件同步顯示。<br>
+                        <strong>工具展示重點：</strong>AI 不是直接猜答案，而是先判斷「這題需要哪個工具」，再呼叫工具取得結果，最後用語音整理給使用者。左側「工具呼叫紀錄區」會顯示工具名稱、參數與回傳結果。<br>
+                        <strong>展示任務建議工具：</strong>這個工具不是查資料，而是用來產生現場教學腳本；可問「請設計一個 30 秒展示工具呼叫的任務」，讓師生看見 AI 如何把展示需求轉成可執行流程。<br>
+                        <em>🔥 展示建議：問「現在幾點？」、「幫我查文藻日文科資訊」、「25乘以36是多少？」、「請設計一個 30 秒展示工具呼叫的任務」或「請上網查今天的 OpenAI 最新消息」。<br>
+                        <strong>網頁搜尋說明：</strong>真正的全網搜尋會固定呼叫 Vercel 後端 <code>/api/web-search</code>；請在 Vercel 設定搜尋服務金鑰。若後端尚未設定，系統會退回維基百科摘要，避免前端因 CORS 無法查詢。</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 官方即時翻譯模式)：</strong><br>
                         此模式使用 <code>gpt-realtime-translate</code> 專用翻譯端點，可自動偵測輸入語言並翻成指定語言；模型會輸出翻譯字幕與語音。<br>
                         <strong>技術備註：</strong>官方翻譯模型會採用動態語音適應來源說話者，目前不支援指定 AI 助理的固定聲音。若一定要使用同一個固定聲音，需改用 <code>gpt-realtime-2</code> 做「助理式翻譯」，但那就不是官方專用翻譯模型。`,
@@ -348,12 +350,18 @@
             "显示":"顯示", "对话":"對話", "简体中文":"簡體中文", "繁体中文":"繁體中文", "台湾":"臺灣",
             "请输入":"請輸入", "无法":"無法", "错误":"錯誤", "失败":"失敗", "成功":"成功", "结果":"結果",
             "当前":"目前", "系统":"系統", "时间":"時間", "会议":"會議", "记录":"紀錄", "纪录":"紀錄",
-            "计算":"計算", "建议":"建議", "任务":"任務", "来源":"來源", "关键字":"關鍵字", "标题":"標題"
+            "计算":"計算", "建议":"建議", "任务":"任務", "来源":"來源", "关键字":"關鍵字", "标题":"標題",
+            "以下":"以下", "为您":"為您", "简洁":"簡潔", "重点":"重點", "官网":"官網", "链接":"連結",
+            "准确":"準確", "归纳":"歸納", "输出":"輸出", "输入":"輸入", "选择":"選擇", "处理":"處理",
+            "请问":"請問", "实时":"即時", "最新消息":"最新消息", "网页资料":"網頁資料", "查询结果":"查詢結果"
         };
         const twMap = {"为":"為","什":"甚","么":"麼","译":"譯","这":"這","怎":"怎","变":"變","反":"反","馈":"饋","边":"邊","转":"轉","减":"減","题":"題","吗":"嗎","觉":"覺","视":"視","频":"頻","说":"說","话":"話","会":"會","开":"開","关":"關","发":"發","现":"現","实":"實","过":"過","样":"樣","对":"對","没":"沒","错":"錯","里":"裡","个":"個","们":"們","来":"來","让":"讓","给":"給","帮":"幫","点":"點","懂":"懂","听":"聽","写":"寫","读":"讀","记":"記","网":"網","页":"頁","图":"圖","电":"電","脑":"腦","机":"機","时":"時","间":"間","学":"學","长":"長","师":"師","员":"員","国":"國","产":"產","业":"業","无":"無","当":"當","够":"夠","维":"維","络":"絡","迟":"遲","缓":"緩","连":"連","接":"接","断":"斷","设":"設","备":"備","麦":"麥","克":"克","风":"風","权":"權","限":"限","测":"測","试":"試","结":"結","请":"請","问":"問","答":"答","谢":"謝","欢":"歡","迎":"迎","辞":"辭","职":"職","责":"責","任":"任","务":"務","系":"系","统":"統","误":"誤","尔":"爾","还":"還","办":"辦","确":"確","虽":"雖","设":"設","备":"備","麦":"麥","克":"克","风":"風","测":"測","试":"試","结":"結","果":"果","请":"請","问":"問","答":"答","谢":"謝","欢":"歡","迎":"迎","辞":"辭","职":"職","责":"責","任":"任","务":"務","系":"系","统":"統","错":"錯","误":"誤"};
         Object.assign(twMap, {
             "软":"軟", "硬":"硬", "数":"數", "库":"庫", "资":"資", "讯":"訊", "搜":"搜", "索":"索", "页":"頁",
             "查":"查", "询":"詢", "调":"調", "连":"連", "断":"斷", "显":"顯", "示":"示", "语":"語", "录":"錄",
+            "简":"簡", "体":"體", "汉":"漢", "与":"與", "专":"專", "应":"應", "选":"選", "择":"擇", "输":"輸", "入":"入",
+            "输":"輸", "处":"處", "净":"淨", "确":"確", "认":"認", "获":"獲", "码":"碼", "历":"歷", "纳":"納",
+            "链":"鏈", "结":"結", "据":"據", "导":"導", "级":"級", "优":"優", "护":"護", "达":"達", "际":"際", "馆":"館",
             "转":"轉", "译":"譯", "实":"實", "时":"時", "间":"間", "会":"會", "议":"議", "线":"線", "网":"網",
             "页":"頁", "户":"戶", "师":"師", "学":"學", "校":"校", "专":"專", "课":"課", "报":"報", "设":"設",
             "错":"錯", "败":"敗", "结":"結", "当":"當", "务":"務", "议":"議", "关":"關", "键":"鍵", "题":"題",
@@ -680,52 +688,43 @@
             return '';
         }
 
-        async function readJsonOrText(response) {
-            const text = await response.text();
-            if (!text) return {};
-            try { return JSON.parse(text); }
-            catch (e) { return { error: text.slice(0, 600), nonJson: true }; }
-        }
-
         async function searchWebInformation(query) {
             const endpoint = (toolWebSearchEndpointInput?.value || '/api/web-search').trim();
             const normalizedQuery = toTW(query || '最新資訊');
-            let backendErrorText = '';
             if (endpoint) {
                 try {
                     const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}q=${encodeURIComponent(normalizedQuery)}`;
                     const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-                    const data = await readJsonOrText(res);
-                    if (res.ok && data && (data.summary || data.answer || data.results)) {
-                        const items = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
-                        const itemText = items.map((item, idx) => {
-                            const title = item.title || item.name || `結果 ${idx + 1}`;
-                            const snippet = item.snippet || item.description || item.content || '';
-                            const itemUrl = item.url || item.link || '';
-                            return `${idx + 1}. ${title}${snippet ? '：' + snippet : ''}${itemUrl ? '（' + itemUrl + '）' : ''}`;
-                        }).join('\n');
-                        const summary = data.summary || data.answer || '';
-                        return { status: 'success', data: toTW(`網頁搜尋工具回傳：${summary}${itemText ? '\n搜尋結果：\n' + itemText : ''}`) };
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && (data.summary || data.answer || data.results)) {
+                            const items = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
+                            const itemText = items.map((item, idx) => {
+                                const title = item.title || item.name || `結果 ${idx + 1}`;
+                                const snippet = item.snippet || item.description || item.content || '';
+                                const itemUrl = item.url || item.link || '';
+                                return `${idx + 1}. ${title}${snippet ? '：' + snippet : ''}${itemUrl ? '（' + itemUrl + '）' : ''}`;
+                            }).join('\n');
+                            const summary = data.summary || data.answer || '';
+                            return { status: 'success', data: toTW(`網頁搜尋工具回傳：${summary}${itemText ? '\n搜尋結果：\n' + itemText : ''}`) };
+                        }
                     }
-                    backendErrorText = data?.error || data?.message || `搜尋後端回傳 HTTP ${res.status}`;
-                    if (data?.hint) backendErrorText += `\n處理建議：${data.hint}`;
-                    console.warn('Web search backend unavailable or empty:', res.status, data);
+                    console.warn('Web search backend unavailable or empty:', res.status);
                 } catch (e) {
-                    backendErrorText = e.message || String(e);
                     console.warn('Web search backend failed, fallback to Wikipedia:', e);
                 }
             }
 
             try {
                 const wikiSummary = await searchWikipediaSummary(normalizedQuery);
-                if (wikiSummary) return { status: 'success', data: toTW(`${backendErrorText ? '網頁搜尋後端未成功，先使用備援資料。原因：' + backendErrorText + '\n' : ''}${wikiSummary}`) };
+                if (wikiSummary) return { status: 'success', data: toTW(wikiSummary) };
             } catch (e) {
                 console.warn('Wikipedia fallback failed:', e);
             }
 
             return {
                 status: 'error',
-                data: toTW(`無法取得「${normalizedQuery}」的網頁搜尋結果。${backendErrorText ? '搜尋後端回報：' + backendErrorText + '。' : ''}請確認：1. Vercel 已部署 api/web-search.js；2. TAVILY_API_KEY 是 Tavily 的金鑰，不是 Apify 金鑰；3. 金鑰已套用到目前 Production 部署並重新部署。`)
+                data: `無法取得「${normalizedQuery}」的網頁搜尋結果。若要做真正全網搜尋，請在 Vercel 新增 /api/web-search 後端，並設定 TAVILY_API_KEY 或 BRAVE_SEARCH_API_KEY。`
             };
         }
 
@@ -1093,7 +1092,7 @@
                         else if (langVal === 'fr') langName = "French (Français)";
                         
                         // 助理模式專屬的語言防護
-                        const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese (简体中文) unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
+                        const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
 
                         const role = customPromptInput.value.trim() || "得力助手";
                         sessionConfig.output_modalities = ["audio"];
