@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v5
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v7
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -235,7 +235,13 @@
         let timerId = null;
         let idleTimeoutId = null; // 閒置斷線計時器
         let transcriptionCommitTimerId = null; // gpt-realtime-whisper 手動分段送出計時器
-        let hasPendingTranscriptionAudio = false; // 聽寫模式是否已有待提交音訊
+        let localNoSpeechTimerId = null; // 翻譯/聽寫本地端無人聲自動斷線檢查
+        let lastHumanVoiceAt = 0; // 最後一次偵測到明顯人聲的時間
+        const LOCAL_NO_SPEECH_LIMIT_MS = 30000; // 30 秒沒有人聲就自動斷線，避免忘記關閉而持續計費
+        const HUMAN_VOICE_RMS_THRESHOLD = 0.012; // 麥克風音量門檻；低於此值視為環境雜音或安靜
+        let hasPendingTranscriptionAudio = false; // 聽寫模式是否已有待提交「人聲」音訊
+        let whisperCommittedText = ""; // 聽寫模式累積完成文字，避免每段分開換行
+        let whisperLiveSegmentText = ""; // 聽寫模式目前分段的增量文字
         
         // 播放聲音的排程時間追蹤
         let nextPlayTime = 0;
@@ -286,10 +292,11 @@
                         <em>🔥 神奇測試建議：勾選「系統時間」並問它：「現在幾點？」 或 勾選「維基百科搜尋」問它：「文藻外語大學現任校長是誰？」</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 官方即時翻譯模式)：</strong><br>
                         此模式使用 <code>gpt-realtime-translate</code> 專用翻譯端點，可自動偵測輸入語言並翻成指定語言；模型會輸出翻譯字幕與語音。<br>
-                        <strong>技術備註：</strong>官方翻譯模型不是一般助理提示詞翻譯，而是連續語音口譯模型；目前不支援自訂提示詞或固定聲音選擇。`,
+                        <strong>技術備註：</strong>官方翻譯模型會採用動態語音適應來源說話者，目前不支援指定 AI 助理的固定聲音。若一定要使用同一個固定聲音，需改用 <code>gpt-realtime-2</code> 做「助理式翻譯」，但那就不是官方專用翻譯模型。`,
             whisper:   `<strong>💡 玩法解說 (GPT-Realtime-Whisper 官方即時聽寫模式)：</strong><br>
                         此模式使用 <code>gpt-realtime-whisper</code> 做低延遲串流聽寫，關閉 AI 回應與翻譯，專注於即時語音轉文字。系統已內建繁體轉換防護，降低簡體字出現機率。<br>
-                        <em>測試建議：直接念一段新聞稿，觀察繁體中文字的準確度。</em>`
+                        <em>測試建議：直接念一段新聞稿，觀察繁體中文字的準確度。<br>
+                        <strong>安全提醒：</strong>若 30 秒沒有偵測到明顯人聲，系統會自動斷線，避免忘記停止而持續計費。</em>`
         };
 
         const savedApiKey = localStorage.getItem('openai_api_key');
@@ -369,6 +376,8 @@
             transcripts = [];
             currentTranscriptText = '';
             currentTranslationText = '';
+            whisperCommittedText = '';
+            whisperLiveSegmentText = '';
             updateTranscriptUI();
 
             explanationContainer.innerHTML = explanations[mode];
@@ -379,6 +388,8 @@
             transcripts = [];
             currentTranscriptText = '';
             currentTranslationText = '';
+            whisperCommittedText = '';
+            whisperLiveSegmentText = '';
             updateTranscriptUI();
         });
 
@@ -473,6 +484,35 @@
 
         function clearIdleTimer() {
             if (idleTimeoutId) clearTimeout(idleTimeoutId);
+        }
+
+        function calculateRms(float32Array) {
+            if (!float32Array || float32Array.length === 0) return 0;
+            let sum = 0;
+            for (let i = 0; i < float32Array.length; i++) {
+                sum += float32Array[i] * float32Array[i];
+            }
+            return Math.sqrt(sum / float32Array.length);
+        }
+
+        function startLocalNoSpeechGuard() {
+            stopLocalNoSpeechGuard();
+            lastHumanVoiceAt = Date.now();
+            localNoSpeechTimerId = setInterval(() => {
+                if (!isRecording || (activeMode !== 'translate' && activeMode !== 'whisper')) return;
+                const idleMs = Date.now() - lastHumanVoiceAt;
+                if (idleMs >= LOCAL_NO_SPEECH_LIMIT_MS) {
+                    showError('已超過 30 秒沒有偵測到明顯人聲，自動斷線以避免翻譯/聽寫持續計費。');
+                    stopSession();
+                }
+            }, 1000);
+        }
+
+        function stopLocalNoSpeechGuard() {
+            if (localNoSpeechTimerId) {
+                clearInterval(localNoSpeechTimerId);
+                localNoSpeechTimerId = null;
+            }
         }
 
         // --- 自動停留在最上方 ---
@@ -652,6 +692,8 @@
             if (timerId) { clearInterval(timerId); timerId = null; }
             if (transcriptionCommitTimerId) { clearInterval(transcriptionCommitTimerId); transcriptionCommitTimerId = null; }
             hasPendingTranscriptionAudio = false;
+            whisperLiveSegmentText = "";
+            stopLocalNoSpeechGuard();
             clearIdleTimer();
 
             if(currentTranscriptText || currentTranslationText) {
@@ -701,6 +743,12 @@
                 processor.onaudioprocess = (e) => {
                     if (ws && ws.readyState === WebSocket.OPEN && isRecording) {
                         const inputData = e.inputBuffer.getChannelData(0);
+                        const rms = calculateRms(inputData);
+                        const hasHumanVoice = rms >= HUMAN_VOICE_RMS_THRESHOLD;
+                        if (hasHumanVoice && (activeMode === 'translate' || activeMode === 'whisper')) {
+                            lastHumanVoiceAt = Date.now();
+                        }
+
                         const pcmData = floatTo16BitPCM(inputData);
                         const base64Audio = arrayBufferToBase64(pcmData);
                         
@@ -709,7 +757,8 @@
                             type: appendEventType,
                             audio: base64Audio
                         }));
-                        if (activeMode === 'whisper') { hasPendingTranscriptionAudio = true; }
+                        // 聽寫模式只在真的偵測到人聲後才分段 commit，避免安靜時不斷送空音訊、產生空白段落與持續計費錯覺。
+                        if (activeMode === 'whisper' && hasHumanVoice) { hasPendingTranscriptionAudio = true; }
                     }
                 };
 
@@ -743,8 +792,12 @@
                     sessionCost += RATE_PER_SECOND;
                     updateBillingUI();
                 }, 1000);
+
+                if (activeMode === 'translate' || activeMode === 'whisper') {
+                    startLocalNoSpeechGuard();
+                }
                 
-                // gpt-realtime-whisper 在目前 GA 連線中不使用 turn_detection；改採手動分段 commit，避免「Turn detection is not supported」錯誤。
+                // gpt-realtime-whisper 目前不支援 turn_detection；改用較長分段 commit，並在畫面上累積為同一段逐字稿，避免一直換行。
                 if (activeMode === 'whisper') {
                     transcriptionCommitTimerId = setInterval(() => {
                         if (ws && ws.readyState === WebSocket.OPEN && isRecording && hasPendingTranscriptionAudio) {
@@ -755,7 +808,7 @@
                                 console.warn('聽寫分段提交失敗：', e);
                             }
                         }
-                    }, 2000);
+                    }, 8000);
                 }
 
                 updateTranscriptUI();
@@ -886,7 +939,7 @@
                         
                     } else if (activeMode === 'whisper') {
                         // 官方 Realtime transcription session：使用 gpt-realtime-whisper，僅輸出轉錄文字。
-                        // 目前此環境回傳「Turn detection is not supported for this transcription model」，因此不送 turn_detection，改由前端每 2 秒手動 commit。
+                        // 目前此環境回傳「Turn detection is not supported for this transcription model」，因此不送 turn_detection，改由前端每 8 秒手動 commit，畫面則合併成同一段。
                         sessionConfig = {
                             type: "transcription",
                             audio: {
@@ -916,21 +969,27 @@
                             break;
                             
                         case 'conversation.item.input_audio_transcription.delta':
-                            currentTranscriptText += message.delta || '';
+                            if (activeMode === 'whisper') {
+                                whisperLiveSegmentText += message.delta || '';
+                                currentTranscriptText = (whisperCommittedText + whisperLiveSegmentText).trimStart();
+                            } else {
+                                currentTranscriptText += message.delta || '';
+                            }
                             updateTranscriptUI();
                             clearIdleTimer();
                             break;
 
                         case 'conversation.item.input_audio_transcription.completed':
-                            currentTranscriptText = message.transcript || currentTranscriptText;
-                            updateTranscriptUI();
                             if (activeMode === 'whisper') {
-                                transcripts.push({
-                                    role: 'user', 
-                                    original: currentTranscriptText,
-                                    translation: ''
-                                });
-                                currentTranscriptText = '';
+                                const completedText = (message.transcript || whisperLiveSegmentText || '').trim();
+                                if (completedText) {
+                                    whisperCommittedText = (whisperCommittedText + completedText + ' ').trimStart();
+                                }
+                                whisperLiveSegmentText = '';
+                                currentTranscriptText = whisperCommittedText.trimStart();
+                                updateTranscriptUI();
+                            } else {
+                                currentTranscriptText = message.transcript || currentTranscriptText;
                                 updateTranscriptUI();
                             }
                             resetIdleTimer(); // 使用者講完話，重新計算閒置
