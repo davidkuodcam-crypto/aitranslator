@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v2
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -282,7 +282,7 @@
         // --- 初始化解說文字 ---
         const explanations = {
             assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 官方語音助理模式 + 工具調用)：</strong><br>
-                        此模式使用 <code>gpt-realtime-2</code>，可自由輸入扮演角色，並勾選它能調用的工具。如果要求它講外文，會自動在文字附上中文翻譯。<br>
+                        此模式使用 <code>gpt-realtime-2</code>，可自由輸入扮演角色，並勾選它能調用的工具。GA 版語音輸出需鎖定為 audio；畫面文字由 audio transcript 事件同步顯示。若要求它講外文，建議口頭說「請同時附中文解釋」。<br>
                         <em>🔥 神奇測試建議：勾選「系統時間」並問它：「現在幾點？」 或 勾選「維基百科搜尋」問它：「文藻外語大學現任校長是誰？」</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 官方即時翻譯模式)：</strong><br>
                         此模式使用 <code>gpt-realtime-translate</code> 專用翻譯端點，可自動偵測輸入語言並翻成指定語言；模型會輸出翻譯字幕與語音。<br>
@@ -806,14 +806,13 @@
                                 transcription: { model: "gpt-realtime-whisper", language: "zh" },
                                 turn_detection: {
                                     type: "server_vad",
-                                    create_response: true,
                                     threshold: 0.5,
                                     prefix_padding_ms: 300,
                                     silence_duration_ms: 500
                                 }
                             },
                             output: {
-                                format: { type: "audio/pcm", rate: 24000 }
+                                format: { type: "audio/pcm" }
                             }
                         }
                     };
@@ -830,7 +829,7 @@
                         const dynamicLangConstraint = `\n\nCRITICAL INSTRUCTION: You MUST use ${langName} for all text generation, transcriptions, and responses. Never use Simplified Chinese (简体中文) unless explicitly requested by the user. Ensure all Chinese characters are Traditional Chinese (繁體中文).`;
 
                         const role = customPromptInput.value.trim() || "得力助手";
-                        sessionConfig.output_modalities = ["text", "audio"];
+                        sessionConfig.output_modalities = ["audio"];
                         sessionConfig.audio.output.voice = voiceSelect.value;
                         
                         let extraInstruction = "";
@@ -907,6 +906,7 @@
 
                 ws.onmessage = (event) => {
                     const message = JSON.parse(event.data);
+                    if (message.type === 'error') { console.error('[Realtime error event]', message); }
 
                     switch (message.type) {
                         case 'session.updated':
