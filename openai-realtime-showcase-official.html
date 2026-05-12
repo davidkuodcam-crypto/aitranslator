@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v3
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v5
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -92,7 +92,7 @@
                                 <option value="pt">翻成：葡萄牙文 (Português)</option>
                             </select>
                             <label class="w-1/3 flex items-center justify-center gap-2 text-sm text-gray-300 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2.5 cursor-pointer hover:bg-gray-800 transition-colors">
-                                <input type="checkbox" id="translateVoiceToggle" class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900">
+                                <input type="checkbox" id="translateVoiceToggle" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900">
                                 語音朗讀
                             </label>
                         </div>
@@ -744,7 +744,19 @@
                     updateBillingUI();
                 }, 1000);
                 
-                // 聽寫模式已改用 server_vad，由伺服器自動判斷語音段落並 commit；不再每 1.2 秒手動 commit，避免切斷語句。
+                // gpt-realtime-whisper 在目前 GA 連線中不使用 turn_detection；改採手動分段 commit，避免「Turn detection is not supported」錯誤。
+                if (activeMode === 'whisper') {
+                    transcriptionCommitTimerId = setInterval(() => {
+                        if (ws && ws.readyState === WebSocket.OPEN && isRecording && hasPendingTranscriptionAudio) {
+                            try {
+                                ws.send(JSON.stringify({ type: "input_audio_buffer.commit" }));
+                                hasPendingTranscriptionAudio = false;
+                            } catch (e) {
+                                console.warn('聽寫分段提交失敗：', e);
+                            }
+                        }
+                    }, 2000);
+                }
 
                 updateTranscriptUI();
 
@@ -873,19 +885,14 @@
                         };
                         
                     } else if (activeMode === 'whisper') {
-                        // 官方 Realtime transcription session：使用 gpt-realtime-whisper，僅輸出轉錄文字
+                        // 官方 Realtime transcription session：使用 gpt-realtime-whisper，僅輸出轉錄文字。
+                        // 目前此環境回傳「Turn detection is not supported for this transcription model」，因此不送 turn_detection，改由前端每 2 秒手動 commit。
                         sessionConfig = {
                             type: "transcription",
                             audio: {
                                 input: {
                                     format: { type: "audio/pcm", rate: 24000 },
-                                    transcription: { model: "gpt-realtime-whisper", language: "zh", delay: "low" },
-                                    turn_detection: {
-                                        type: "server_vad",
-                                        threshold: 0.5,
-                                        prefix_padding_ms: 300,
-                                        silence_duration_ms: 500
-                                    }
+                                    transcription: { model: "gpt-realtime-whisper", language: "zh" }
                                 }
                             }
                         };
