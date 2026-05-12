@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v7
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v8
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -128,6 +128,9 @@
                             <div class="flex flex-wrap gap-4">
                                 <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolWebSearch" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 維基百科搜尋</label>
                                 <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolTime" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 當前系統時間</label>
+                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolAdmission" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 文藻招生資料庫</label>
+                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolCalculator" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 簡易計算器</label>
+                                <label class="flex items-center gap-1 text-sm text-gray-300 cursor-pointer"><input type="checkbox" id="toolDemoAction" checked class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-gray-900"> 展示任務建議</label>
                             </div>
                         </div>
 
@@ -165,6 +168,21 @@
                     <div id="sessionCostDisplay" class="text-3xl font-mono font-bold text-red-400 mb-1">$0.0000</div>
                     <div class="text-xs text-gray-400 text-center">本次預估費用<br><span id="rateDisplay" class="text-[10px] text-gray-500">(費率依模型變動)</span></div>
                 </div>
+
+                <div class="bg-gray-800 p-5 rounded-2xl shadow-lg border border-gray-700 relative overflow-hidden">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-sm font-semibold text-indigo-300 flex items-center gap-2">
+                            <i data-lucide="wrench" class="w-4 h-4"></i> 工具呼叫紀錄區
+                        </h3>
+                        <button id="clearToolLogBtn" class="text-[11px] text-gray-400 hover:text-red-400 transition-colors">清除</button>
+                    </div>
+                    <div class="text-[11px] text-gray-500 mb-3 leading-relaxed">
+                        這裡會顯示 AI 判斷需要外部資料時，實際呼叫哪一個工具、帶入什麼參數，以及工具回傳什麼結果。
+                    </div>
+                    <div id="toolLogContainer" class="max-h-[300px] overflow-y-auto space-y-3 pr-1">
+                        <div class="text-xs text-gray-500 italic">尚未呼叫工具。可問：「現在幾點？」、「幫我查文藻日文科資訊」、「25乘以36是多少？」</div>
+                    </div>
+                </div>
             </div>
 
             <!-- 右側：對話與翻譯區 -->
@@ -189,7 +207,7 @@
                     <div id="currentSpeechContainer" class="hidden flex-col gap-2 max-w-[90%] opacity-90 pb-4 border-b border-gray-700/50">
                         <!-- 原文 (使用者) -->
                         <div id="currentTranscript" class="flex flex-col gap-1 items-start">
-                            <span class="text-xs text-gray-500 ml-1">您說的話 (轉錄中)：</span>
+                            <span class="text-xs text-gray-500 ml-1">您說的話 (轉錄中)：<span id="currentTimeLabel" class="ml-2 text-gray-400"></span></span>
                             <div class="text-sm text-gray-300 bg-gray-800 w-fit px-4 py-2 rounded-xl rounded-bl-none border border-gray-600 border-dashed">
                                 <span class="transcript-text text-gray-500 italic">(聆聽中...)</span><span class="animate-pulse">...</span>
                             </div>
@@ -222,8 +240,10 @@
         let sessionSeconds = 0;
         let sessionCost = 0;
         let transcripts = [];
+        let toolLogs = [];
         let currentTranscriptText = '';
         let currentTranslationText = '';
+        let currentStartedAt = null;
         let activeMode = 'assistant'; // 'assistant', 'translate', 'whisper'
 
         // WebRTC & WebSocket 相關變數
@@ -261,6 +281,9 @@
         const toolSelectionContainer = document.getElementById('toolSelectionContainer');
         const toolWebSearch = document.getElementById('toolWebSearch');
         const toolTime = document.getElementById('toolTime');
+        const toolAdmission = document.getElementById('toolAdmission');
+        const toolCalculator = document.getElementById('toolCalculator');
+        const toolDemoAction = document.getElementById('toolDemoAction');
         
         const toggleRecordingBtn = document.getElementById('toggleRecordingBtn');
         const statusIndicator = document.getElementById('statusIndicator');
@@ -270,6 +293,9 @@
         const explanationContainer = document.getElementById('explanationContainer');
         const chatBoxTitle = document.getElementById('chatBoxTitle');
         const clearTranscriptBtn = document.getElementById('clearTranscriptBtn');
+        const clearToolLogBtn = document.getElementById('clearToolLogBtn');
+        const toolLogContainer = document.getElementById('toolLogContainer');
+        const currentTimeLabel = document.getElementById('currentTimeLabel');
         
         const sessionTimeDisplay = document.getElementById('sessionTimeDisplay');
         const sessionCostDisplay = document.getElementById('sessionCostDisplay');
@@ -289,7 +315,7 @@
         const explanations = {
             assistant: `<strong>💡 玩法解說 (GPT-Realtime-2 官方語音助理模式 + 工具調用)：</strong><br>
                         此模式使用 <code>gpt-realtime-2</code>，可自由輸入扮演角色，並勾選它能調用的工具。GA 版語音輸出需鎖定為 audio；畫面文字由 audio transcript 事件同步顯示。若要求它講外文，建議口頭說「請同時附中文解釋」。<br>
-                        <em>🔥 神奇測試建議：勾選「系統時間」並問它：「現在幾點？」 或 勾選「維基百科搜尋」問它：「文藻外語大學現任校長是誰？」</em>`,
+                        <em>🔥 展示建議：問「現在幾點？」、「幫我查文藻日文科資訊」、「25乘以36是多少？」或「幫我設計一個30秒展示工具呼叫的任務」。旁邊的「工具呼叫紀錄區」會清楚顯示 AI 呼叫了哪個工具。</em>`,
             translate: `<strong>💡 玩法解說 (GPT-Realtime-Translate 官方即時翻譯模式)：</strong><br>
                         此模式使用 <code>gpt-realtime-translate</code> 專用翻譯端點，可自動偵測輸入語言並翻成指定語言；模型會輸出翻譯字幕與語音。<br>
                         <strong>技術備註：</strong>官方翻譯模型會採用動態語音適應來源說話者，目前不支援指定 AI 助理的固定聲音。若一定要使用同一個固定聲音，需改用 <code>gpt-realtime-2</code> 做「助理式翻譯」，但那就不是官方專用翻譯模型。`,
@@ -554,6 +580,16 @@
                 } else if (name === "get_current_time") {
                     result.data = `目前系統日期與時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`;
                     await new Promise(r => setTimeout(r, 200)); 
+                } else if (name === "calculate_expression") {
+                    const expression = args.expression || '';
+                    const value = safeCalculateExpression(expression);
+                    result.data = `計算式：${expression}，結果：${value}`;
+                    await new Promise(r => setTimeout(r, 150));
+                } else if (name === "suggest_demo_action") {
+                    const topic = args.topic || '工具呼叫展示';
+                    const minutes = args.minutes || 1;
+                    result.data = `展示任務建議：以「${topic}」為主題，先問一個模型無法只靠記憶可靠回答的問題，再讓 AI 呼叫工具取得資料，最後請 AI 用 ${minutes} 分鐘內的口語說明整理結果。建議現場指令：「請先查資料，再用三句話說明。」`;
+                    await new Promise(r => setTimeout(r, 250));
                 } else if (name === "search_web_information") {
                     const query = args.query || "最新資訊";
                     try {
@@ -588,6 +624,8 @@
                 result.data = e.message;
             }
 
+            addToolLog({ name, args: parsedArgs, status: result.status, result: result.data });
+
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: "conversation.item.create",
@@ -618,16 +656,19 @@
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'history-item flex flex-col gap-2 w-full pb-4 border-b border-gray-700/50';
                 
+                const modeLabel = getModeLabel(item.mode || 'assistant');
+                const timeLabel = item.timestamp ? formatDateTime(item.timestamp) : '';
                 let html = `
+                    <div class="text-xs text-gray-500 ml-1 mb-1">${modeLabel}時間：${timeLabel}</div>
                     <div class="flex flex-col gap-1 items-start">
                         <span class="text-xs text-gray-500 ml-1">使用者：</span>
                         <div class="text-sm text-gray-300 bg-gray-800 w-fit max-w-[90%] px-4 py-2 rounded-xl rounded-bl-none border border-gray-600">${item.original ? toTW(item.original).trimStart() : ''}</div>
                     </div>
                 `;
                 
-                if (item.translation && activeMode !== 'whisper') {
+                if (item.translation && (item.mode || activeMode) !== 'whisper') {
                     let label = 'AI 回應：';
-                    if (activeMode === 'translate') label = '即時翻譯：';
+                    if ((item.mode || activeMode) === 'translate') label = '即時翻譯：';
 
                     html += `
                     <div class="flex flex-col gap-1 items-start mt-1">
@@ -645,6 +686,8 @@
                 currentSpeechContainer.classList.remove('hidden');
                 currentSpeechContainer.classList.add('flex');
                 
+                ensureCurrentStartedAt();
+                if (currentTimeLabel) currentTimeLabel.textContent = `｜${getModeLabel(activeMode)}時間：${formatDateTime(currentStartedAt)}`;
                 const transcriptSpan = currentTranscriptEl.querySelector('.transcript-text');
                 if (currentTranscriptText) {
                     transcriptSpan.textContent = toTW(currentTranscriptText).trimStart();
@@ -663,6 +706,7 @@
             } else {
                 currentSpeechContainer.classList.add('hidden');
                 currentSpeechContainer.classList.remove('flex');
+                if (currentTimeLabel) currentTimeLabel.textContent = '';
             }
             
             // 每次更新畫面確保鎖定在最上方，免除滑動捲軸的困擾
@@ -697,11 +741,7 @@
             clearIdleTimer();
 
             if(currentTranscriptText || currentTranslationText) {
-                transcripts.push({
-                    role: 'user', 
-                    original: currentTranscriptText || '(未收到完整語音轉錄)', 
-                    translation: currentTranslationText
-                });
+                pushTranscript(currentTranscriptText || '(未收到完整語音轉錄)', currentTranslationText);
             }
             
             currentTranscriptText = '';
@@ -721,6 +761,9 @@
             assistantLangSelect.disabled = false;
             if (toolWebSearch) toolWebSearch.disabled = false;
             if (toolTime) toolTime.disabled = false;
+            if (toolAdmission) toolAdmission.disabled = false;
+            if (toolCalculator) toolCalculator.disabled = false;
+            if (toolDemoAction) toolDemoAction.disabled = false;
 
             recordingIndicator.classList.add('hidden');
             recordingIndicator.classList.remove('flex');
@@ -766,6 +809,7 @@
                 processor.connect(micAudioContext.destination);
 
                 isRecording = true;
+                ensureCurrentStartedAt();
                 
                 // 連線成功，切換為紅色停止按鈕，重新建立圖示
                 toggleRecordingBtn.disabled = false;
@@ -781,6 +825,9 @@
                 assistantLangSelect.disabled = true;
                 if (toolWebSearch) toolWebSearch.disabled = true;
                 if (toolTime) toolTime.disabled = true;
+                if (toolAdmission) toolAdmission.disabled = true;
+                if (toolCalculator) toolCalculator.disabled = true;
+                if (toolDemoAction) toolDemoAction.disabled = true;
 
                 recordingIndicator.classList.remove('hidden');
                 recordingIndicator.classList.add('flex');
@@ -896,7 +943,7 @@
                             extraInstruction += `\nCRITICAL INSTRUCTION: You must speak in ${langName}. However, your TEXT output MUST be formatted as "[${langName} response] (中文翻譯：[Traditional Chinese translation])". Your AUDIO output should ONLY be in ${langName}.`;
                         }
                         
-                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks for the latest news, weather, or real-time web search, use the 'search_web_information' tool. If you don't know the answer to a question, just say you don't know.` + extraInstruction + dynamicLangConstraint;
+                        sessionConfig.instructions = `You are a helpful and intelligent assistant. Your role is: ${role}. You must reply using audio. If the user asks for the latest news, weather, or real-time web search, use the 'search_web_information' tool. If the user asks for the current time, use 'get_current_time'. If the user asks for Wenzao admissions or language departments, use 'get_admission_info'. If the user asks for arithmetic calculation, use 'calculate_expression'. If the user asks how to demonstrate tool calling, use 'suggest_demo_action'. If you don't know the answer to a question, just say you don't know.` + extraInstruction + dynamicLangConstraint;
                         
                         // ✨ 根據勾選狀態動態註冊工具
                         sessionConfig.tools = [];
@@ -919,6 +966,45 @@
                                 name: "get_current_time",
                                 description: "獲取現在的系統日期與時間",
                                 parameters: { type: "object", properties: {} }
+                            });
+                        }
+                        if (toolAdmission.checked) {
+                            sessionConfig.tools.push({
+                                type: "function",
+                                name: "get_admission_info",
+                                description: "查詢文藻五專外語相關科別的招生門檻與特色，用於招生展示。支援日文、英文、法文、德文、西班牙文。",
+                                parameters: {
+                                    type: "object",
+                                    properties: { department: { type: "string", description: "科別或語言，例如日文、英文、法文、德文、西班牙文" } },
+                                    required: ["department"]
+                                }
+                            });
+                        }
+                        if (toolCalculator.checked) {
+                            sessionConfig.tools.push({
+                                type: "function",
+                                name: "calculate_expression",
+                                description: "進行簡易算術計算，用於展示 AI 可把計算任務交給工具執行，而不是靠語言模型猜答案。",
+                                parameters: {
+                                    type: "object",
+                                    properties: { expression: { type: "string", description: "算術式，例如 25*36 或 (120+80)/4" } },
+                                    required: ["expression"]
+                                }
+                            });
+                        }
+                        if (toolDemoAction.checked) {
+                            sessionConfig.tools.push({
+                                type: "function",
+                                name: "suggest_demo_action",
+                                description: "根據展示主題產生一個適合現場教學的 AI 工具呼叫展示任務。",
+                                parameters: {
+                                    type: "object",
+                                    properties: {
+                                        topic: { type: "string", description: "展示主題，例如招生、翻譯、會議記錄、行政流程" },
+                                        minutes: { type: "number", description: "希望展示控制在幾分鐘內" }
+                                    },
+                                    required: ["topic"]
+                                }
                             });
                         }
 
@@ -969,6 +1055,7 @@
                             break;
                             
                         case 'conversation.item.input_audio_transcription.delta':
+                            ensureCurrentStartedAt();
                             if (activeMode === 'whisper') {
                                 whisperLiveSegmentText += message.delta || '';
                                 currentTranscriptText = (whisperCommittedText + whisperLiveSegmentText).trimStart();
@@ -980,6 +1067,7 @@
                             break;
 
                         case 'conversation.item.input_audio_transcription.completed':
+                            ensureCurrentStartedAt();
                             if (activeMode === 'whisper') {
                                 const completedText = (message.transcript || whisperLiveSegmentText || '').trim();
                                 if (completedText) {
@@ -996,6 +1084,7 @@
                             break;
                             
                         case 'session.input_transcript.delta':
+                            ensureCurrentStartedAt();
                             if (activeMode === 'translate') {
                                 currentTranscriptText += message.delta || '';
                                 updateTranscriptUI();
@@ -1004,6 +1093,7 @@
                             break;
 
                         case 'session.output_transcript.delta':
+                            ensureCurrentStartedAt();
                             if (activeMode === 'translate') {
                                 currentTranslationText += message.delta || '';
                                 updateTranscriptUI();
@@ -1019,6 +1109,7 @@
                             break;
 
                         case 'response.output_text.delta':
+                            ensureCurrentStartedAt();
                         case 'response.text.delta':
                             if (activeMode === 'assistant' || activeMode === 'translate') {
                                 currentTranslationText += message.delta;
@@ -1028,6 +1119,7 @@
                             break;
 
                         case 'response.output_audio_transcript.delta':
+                            ensureCurrentStartedAt();
                         case 'response.audio_transcript.delta':
                             // 修正：當翻譯模式勾選語音朗讀時，文字是透過 audio_transcript 回傳的
                             if (activeMode === 'assistant' || activeMode === 'translate') {
@@ -1064,11 +1156,7 @@
                         case 'session.output_transcript.done':
                         case 'session.output_audio.done':
                             if (activeMode === 'translate' && (currentTranscriptText || currentTranslationText)) {
-                                transcripts.push({
-                                    role: 'user',
-                                    original: currentTranscriptText || '(翻譯中未收到原文字幕)',
-                                    translation: currentTranslationText
-                                });
+                                pushTranscript(currentTranscriptText || '(翻譯中未收到原文字幕)', currentTranslationText);
                                 currentTranscriptText = '';
                                 currentTranslationText = '';
                                 updateTranscriptUI();
@@ -1078,11 +1166,7 @@
 
                         case 'response.done':
                             if ((currentTranscriptText || currentTranslationText) && activeMode !== 'whisper' && activeMode !== 'translate') {
-                                transcripts.push({
-                                    role: 'user', 
-                                    original: currentTranscriptText || '(未收到完整語音轉錄)',
-                                    translation: currentTranslationText
-                                });
+                                pushTranscript(currentTranscriptText || '(未收到完整語音轉錄)', currentTranslationText);
                                 currentTranscriptText = '';
                                 currentTranslationText = '';
                                 updateTranscriptUI();
@@ -1125,6 +1209,7 @@
         });
         
         updateBillingUI();
+        updateToolLogUI();
     </script>
 </body>
 </html>
