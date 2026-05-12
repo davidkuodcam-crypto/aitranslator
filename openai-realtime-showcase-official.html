@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenAI 語音模型展示戰情室 GA v10</title>
+    <title>OpenAI 語音模型展示戰情室 GA v11</title>
     <!-- 引入 Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入 Lucide Icons -->
@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v10
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v11
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -680,43 +680,52 @@
             return '';
         }
 
+        async function readJsonOrText(response) {
+            const text = await response.text();
+            if (!text) return {};
+            try { return JSON.parse(text); }
+            catch (e) { return { error: text.slice(0, 600), nonJson: true }; }
+        }
+
         async function searchWebInformation(query) {
             const endpoint = (toolWebSearchEndpointInput?.value || '/api/web-search').trim();
             const normalizedQuery = toTW(query || '最新資訊');
+            let backendErrorText = '';
             if (endpoint) {
                 try {
                     const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}q=${encodeURIComponent(normalizedQuery)}`;
                     const res = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-                    if (res.ok) {
-                        const data = await res.json();
-                        if (data && (data.summary || data.answer || data.results)) {
-                            const items = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
-                            const itemText = items.map((item, idx) => {
-                                const title = item.title || item.name || `結果 ${idx + 1}`;
-                                const snippet = item.snippet || item.description || item.content || '';
-                                const itemUrl = item.url || item.link || '';
-                                return `${idx + 1}. ${title}${snippet ? '：' + snippet : ''}${itemUrl ? '（' + itemUrl + '）' : ''}`;
-                            }).join('\n');
-                            const summary = data.summary || data.answer || '';
-                            return { status: 'success', data: toTW(`網頁搜尋工具回傳：${summary}${itemText ? '\n搜尋結果：\n' + itemText : ''}`) };
-                        }
+                    const data = await readJsonOrText(res);
+                    if (res.ok && data && (data.summary || data.answer || data.results)) {
+                        const items = Array.isArray(data.results) ? data.results.slice(0, 5) : [];
+                        const itemText = items.map((item, idx) => {
+                            const title = item.title || item.name || `結果 ${idx + 1}`;
+                            const snippet = item.snippet || item.description || item.content || '';
+                            const itemUrl = item.url || item.link || '';
+                            return `${idx + 1}. ${title}${snippet ? '：' + snippet : ''}${itemUrl ? '（' + itemUrl + '）' : ''}`;
+                        }).join('\n');
+                        const summary = data.summary || data.answer || '';
+                        return { status: 'success', data: toTW(`網頁搜尋工具回傳：${summary}${itemText ? '\n搜尋結果：\n' + itemText : ''}`) };
                     }
-                    console.warn('Web search backend unavailable or empty:', res.status);
+                    backendErrorText = data?.error || data?.message || `搜尋後端回傳 HTTP ${res.status}`;
+                    if (data?.hint) backendErrorText += `\n處理建議：${data.hint}`;
+                    console.warn('Web search backend unavailable or empty:', res.status, data);
                 } catch (e) {
+                    backendErrorText = e.message || String(e);
                     console.warn('Web search backend failed, fallback to Wikipedia:', e);
                 }
             }
 
             try {
                 const wikiSummary = await searchWikipediaSummary(normalizedQuery);
-                if (wikiSummary) return { status: 'success', data: toTW(wikiSummary) };
+                if (wikiSummary) return { status: 'success', data: toTW(`${backendErrorText ? '網頁搜尋後端未成功，先使用備援資料。原因：' + backendErrorText + '\n' : ''}${wikiSummary}`) };
             } catch (e) {
                 console.warn('Wikipedia fallback failed:', e);
             }
 
             return {
                 status: 'error',
-                data: `無法取得「${normalizedQuery}」的網頁搜尋結果。若要做真正全網搜尋，請在 Vercel 新增 /api/web-search 後端，並設定 TAVILY_API_KEY 或 BRAVE_SEARCH_API_KEY。`
+                data: toTW(`無法取得「${normalizedQuery}」的網頁搜尋結果。${backendErrorText ? '搜尋後端回報：' + backendErrorText + '。' : ''}請確認：1. Vercel 已部署 api/web-search.js；2. TAVILY_API_KEY 是 Tavily 的金鑰，不是 Apify 金鑰；3. 金鑰已套用到目前 Production 部署並重新部署。`)
             };
         }
 
