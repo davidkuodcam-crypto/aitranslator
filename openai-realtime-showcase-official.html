@@ -28,7 +28,7 @@
             <div class="p-5 border-b border-gray-700 bg-gray-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2 text-indigo-400">
                     <i data-lucide="cpu" class="w-6 h-6"></i>
-                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v2
+                    OpenAI 官方即時語音三模型展示 (Realtime API)｜GA v3
                 </h1>
                 <div class="flex items-center gap-2 text-sm text-gray-400 bg-gray-900 px-3 py-1.5 rounded-full border border-gray-700">
                     <span id="statusIndicator" class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -812,7 +812,7 @@
                                 }
                             },
                             output: {
-                                format: { type: "audio/pcm" }
+                                format: { type: "audio/pcm", rate: 24000 }
                             }
                         }
                     };
